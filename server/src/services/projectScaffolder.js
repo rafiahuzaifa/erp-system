@@ -41,7 +41,8 @@ class ProjectScaffolder {
         private: true,
         scripts: {
           start: 'node src/index.js',
-          dev: 'node --watch src/index.js'
+          dev: 'node --watch src/index.js',
+          seed: 'node src/seed.js'
         },
         dependencies: {
           express: '^4.18.2',

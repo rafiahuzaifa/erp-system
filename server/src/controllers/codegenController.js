@@ -25,18 +25,17 @@ exports.generate = async (req, res, next) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
-    // Update project status
-    project.status = 'generating';
-    await project.save();
+    // Update project status using findByIdAndUpdate to avoid Mongoose nested subdoc bug
+    await Project.findByIdAndUpdate(project._id, { $set: { status: 'generating' } });
 
     emitEvent('status', { status: 'generating', message: 'Starting code generation...' });
 
     try {
       const generatedCode = await codegenService.generateProject(project, questionnaire, emitEvent);
 
-      project.status = 'generated';
-      project.generatedCodeRef = generatedCode._id;
-      await project.save();
+      await Project.findByIdAndUpdate(project._id, {
+        $set: { status: 'generated', generatedCodeRef: generatedCode._id }
+      });
 
       emitEvent('complete', {
         status: 'generated',
@@ -45,8 +44,7 @@ exports.generate = async (req, res, next) => {
       });
     } catch (genError) {
       logger.error('Code generation failed:', genError);
-      project.status = 'failed';
-      await project.save();
+      await Project.findByIdAndUpdate(project._id, { $set: { status: 'failed' } });
 
       emitEvent('error', { message: genError.message });
     }
@@ -141,18 +139,16 @@ exports.regenerate = async (req, res, next) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
-    project.status = 'generating';
-    await project.save();
+    await Project.findByIdAndUpdate(project._id, { $set: { status: 'generating' } });
 
     try {
       const generatedCode = await codegenService.generateProject(project, questionnaire, emitEvent);
-      project.status = 'generated';
-      project.generatedCodeRef = generatedCode._id;
-      await project.save();
+      await Project.findByIdAndUpdate(project._id, {
+        $set: { status: 'generated', generatedCodeRef: generatedCode._id }
+      });
       emitEvent('complete', { totalFiles: generatedCode.files.length });
     } catch (genError) {
-      project.status = 'failed';
-      await project.save();
+      await Project.findByIdAndUpdate(project._id, { $set: { status: 'failed' } });
       emitEvent('error', { message: genError.message });
     }
 

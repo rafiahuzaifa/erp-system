@@ -18,9 +18,13 @@ export default function useSSE(url, options = {}) {
     // Use fetch for POST-based SSE (since EventSource only supports GET)
     const abortController = new AbortController();
 
+    const headers = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     fetch(url, {
       method: options.method || 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: abortController.signal
     }).then(async (response) => {

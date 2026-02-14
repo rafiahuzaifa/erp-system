@@ -2,6 +2,7 @@ const GeneratedCode = require('../models/mongo/GeneratedCode');
 const TemplateEngine = require('./templateEngine');
 const AIService = require('./aiService');
 const ProjectScaffolder = require('./projectScaffolder');
+const { moduleDefinitions } = require('shared/moduleDefinitions');
 const logger = require('../utils/logger');
 
 class CodegenService {
@@ -16,13 +17,39 @@ class CodegenService {
     const allFiles = [];
     const generationLog = [];
 
+    // Convert Mongoose documents to plain objects to avoid Handlebars prototype access errors
+    const projectId = project._id;
+    const projectData = JSON.parse(JSON.stringify(project.toObject ? project.toObject() : project));
+
+    // Enrich entities with fields from module definitions if missing
+    for (const mod of projectData.modules) {
+      const def = moduleDefinitions[mod.moduleId];
+      if (!def) continue;
+      for (const entity of mod.entities) {
+        if (!entity.fields || entity.fields.length === 0) {
+          const defEntity = def.defaultEntities.find(e => e.name === entity.name);
+          if (defEntity) {
+            entity.fields = defEntity.fields.map(f => ({
+              name: f.name,
+              type: f.type,
+              required: f.required || false,
+              unique: f.unique || false,
+              ref: f.ref || undefined,
+              enumValues: f.enumValues ? [...f.enumValues] : undefined,
+              defaultValue: f.defaultValue
+            }));
+          }
+        }
+      }
+    }
+
     // Check for existing version
-    const existingCode = await GeneratedCode.findOne({ projectId: project._id })
+    const existingCode = await GeneratedCode.findOne({ projectId })
       .sort({ version: -1 });
     const version = existingCode ? existingCode.version + 1 : 1;
 
     const generatedCode = new GeneratedCode({
-      projectId: project._id,
+      projectId,
       version,
       status: 'generating'
     });
@@ -33,11 +60,11 @@ class CodegenService {
       const phase1Start = Date.now();
       emitEvent('phase', { phase: 'scaffold', message: 'Creating project structure...' });
 
-      const scaffoldFiles = this.scaffolder.createScaffoldFiles(project);
+      const scaffoldFiles = this.scaffolder.createScaffoldFiles(projectData);
       allFiles.push(...scaffoldFiles);
 
-      if (project.settings.frontend) {
-        const frontendScaffold = this.scaffolder.createFrontendScaffold(project);
+      if (projectData.settings.frontend) {
+        const frontendScaffold = this.scaffolder.createFrontendScaffold(projectData);
         allFiles.push(...frontendScaffold);
       }
 
@@ -55,10 +82,10 @@ class CodegenService {
       const phase2Start = Date.now();
       emitEvent('phase', { phase: 'models', message: 'Generating database models...' });
 
-      for (const mod of project.modules) {
+      for (const mod of projectData.modules) {
         for (const entity of mod.entities) {
           try {
-            const modelContent = this.templateEngine.renderModel(entity, project.settings);
+            const modelContent = this.templateEngine.renderModel(entity, projectData.settings);
             allFiles.push({
               path: `src/models/${entity.name}.js`,
               content: modelContent,
@@ -86,9 +113,20 @@ class CodegenService {
         timestamp: new Date(),
         phase: 'models',
         status: 'complete',
-        details: `Generated models for ${project.modules.reduce((sum, m) => sum + m.entities.length, 0)} entities`,
+        details: `Generated models for ${projectData.modules.reduce((sum, m) => sum + m.entities.length, 0)} entities`,
         duration: Date.now() - phase2Start
       });
+
+      // Generate database seed file
+      const seedContent = this.generateSeedFile(projectData);
+      allFiles.push({
+        path: 'src/seed.js',
+        content: seedContent,
+        language: 'javascript',
+        generatedBy: 'template',
+        module: 'core'
+      });
+      emitEvent('file', { path: 'src/seed.js', status: 'generated' });
 
       emitEvent('progress', { percent: 35, filesGenerated: allFiles.length });
 
@@ -97,7 +135,7 @@ class CodegenService {
       emitEvent('phase', { phase: 'api', message: 'Generating API endpoints...' });
 
       // Generate main server entry
-      const serverContent = this.templateEngine.renderServer(project);
+      const serverContent = this.templateEngine.renderServer(projectData);
       allFiles.push({
         path: 'src/index.js',
         content: serverContent,
@@ -108,7 +146,7 @@ class CodegenService {
       emitEvent('file', { path: 'src/index.js', status: 'generated' });
 
       // Generate routes and controllers for each module
-      for (const mod of project.modules) {
+      for (const mod of projectData.modules) {
         // Module-level route aggregator
         const moduleRoutes = this.generateModuleRouteAggregator(mod);
         allFiles.push({
@@ -163,13 +201,13 @@ class CodegenService {
       emitEvent('progress', { percent: 55, filesGenerated: allFiles.length });
 
       // ===== Phase 4: Frontend =====
-      if (project.settings.frontend) {
+      if (projectData.settings.frontend) {
         const phase4Start = Date.now();
         emitEvent('phase', { phase: 'frontend', message: 'Generating React components...' });
 
         try {
           // App.jsx
-          const appContent = this.templateEngine.renderReactApp(project);
+          const appContent = this.templateEngine.renderReactApp(projectData);
           allFiles.push({
             path: 'client/src/App.jsx',
             content: appContent,
@@ -182,7 +220,7 @@ class CodegenService {
           logger.warn('Failed to render React App:', err.message);
           allFiles.push({
             path: 'client/src/App.jsx',
-            content: this.generateFallbackApp(project),
+            content: this.generateFallbackApp(projectData),
             language: 'javascript',
             generatedBy: 'template',
             module: 'frontend'
@@ -190,7 +228,7 @@ class CodegenService {
         }
 
         // Generate pages for each module
-        for (const mod of project.modules) {
+        for (const mod of projectData.modules) {
           try {
             const pageContent = this.templateEngine.renderReactPage(null, mod);
             allFiles.push({
@@ -217,7 +255,7 @@ class CodegenService {
           timestamp: new Date(),
           phase: 'frontend',
           status: 'complete',
-          details: `Generated React frontend with ${project.modules.length} module pages`,
+          details: `Generated React frontend with ${projectData.modules.length} module pages`,
           duration: Date.now() - phase4Start
         });
 
@@ -225,14 +263,14 @@ class CodegenService {
       }
 
       // ===== Phase 5: Docker =====
-      if (project.settings.docker) {
+      if (projectData.settings.docker) {
         const phase5Start = Date.now();
         emitEvent('phase', { phase: 'docker', message: 'Creating deployment configuration...' });
 
         try {
           const dockerfileContent = this.templateEngine.renderDockerfile({
-            ...project,
-            settings: { ...project.settings, port: 3000 }
+            ...projectData,
+            settings: { ...projectData.settings, port: 3000 }
           });
           allFiles.push({
             path: 'Dockerfile',
@@ -252,7 +290,7 @@ class CodegenService {
         }
 
         try {
-          const composeContent = this.templateEngine.renderDockerCompose(project);
+          const composeContent = this.templateEngine.renderDockerCompose(projectData);
           allFiles.push({
             path: 'docker-compose.yml',
             content: composeContent,
@@ -360,6 +398,38 @@ class CodegenService {
       { path: `src/routes/${name}Routes.js`, content: route, language: 'javascript', generatedBy: 'template', module: mod.moduleId },
       { path: `src/controllers/${name}Controller.js`, content: controller, language: 'javascript', generatedBy: 'template', module: mod.moduleId }
     ];
+  }
+
+  generateSeedFile(project) {
+    const imports = [];
+    const seedBlocks = [];
+
+    for (const mod of project.modules) {
+      for (const entity of mod.entities) {
+        const Name = this.toPascalCase(entity.name);
+        imports.push(`const ${Name} = require('./models/${Name}');`);
+
+        // Generate sample seed data based on fields
+        const sampleData = {};
+        for (const field of entity.fields) {
+          if (field.type === 'ObjectId') continue;
+          if (field.type === 'String') sampleData[this.toCamelCase(field.name)] = `Sample ${field.name}`;
+          else if (field.type === 'Number') sampleData[this.toCamelCase(field.name)] = 0;
+          else if (field.type === 'Boolean') sampleData[this.toCamelCase(field.name)] = true;
+          else if (field.type === 'Date') sampleData[this.toCamelCase(field.name)] = 'new Date()';
+          else if (field.type === 'Enum' && field.enumValues && field.enumValues.length) sampleData[this.toCamelCase(field.name)] = field.enumValues[0];
+        }
+
+        const dataStr = Object.entries(sampleData).map(([k, v]) => {
+          if (v === 'new Date()') return `    ${k}: new Date()`;
+          return `    ${k}: ${JSON.stringify(v)}`;
+        }).join(',\n');
+
+        seedBlocks.push(`  // Seed ${Name}\n  const ${this.toCamelCase(entity.name)}Count = await ${Name}.countDocuments();\n  if (${this.toCamelCase(entity.name)}Count === 0) {\n    await ${Name}.create([\n      {\n${dataStr}\n      }\n    ]);\n    console.log('Seeded ${Name}');\n  } else {\n    console.log('${Name} already has data, skipping seed');\n  }`);
+      }
+    }
+
+    return `const mongoose = require('mongoose');\nrequire('dotenv').config();\n\n${imports.join('\n')}\n\nconst MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/${this.toKebabCase(project.name)}';\n\nasync function seed() {\n  try {\n    await mongoose.connect(MONGODB_URI);\n    console.log('Connected to MongoDB for seeding...');\n\n${seedBlocks.join('\n\n')}\n\n    console.log('Seeding complete!');\n    process.exit(0);\n  } catch (err) {\n    console.error('Seeding failed:', err);\n    process.exit(1);\n  }\n}\n\nseed();\n`;
   }
 
   generateFallbackApp(project) {

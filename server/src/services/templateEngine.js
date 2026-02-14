@@ -77,6 +77,12 @@ class TemplateEngine {
 
     Handlebars.registerHelper('json', (obj) => JSON.stringify(obj, null, 2));
 
+    Handlebars.registerHelper('jsValue', (val) => {
+      if (val === undefined || val === null) return 'null';
+      if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+      return `'${String(val)}'`;
+    });
+
     Handlebars.registerHelper('join', (arr, sep) => {
       if (Array.isArray(arr)) return arr.join(typeof sep === 'string' ? sep : ', ');
       return '';

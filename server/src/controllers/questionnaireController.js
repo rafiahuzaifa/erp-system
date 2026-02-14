@@ -19,18 +19,22 @@ exports.saveStep = async (req, res, next) => {
     const { responses } = req.body;
     const step = parseInt(stepNum);
 
-    const questionnaire = await Questionnaire.findOne({ projectId });
-    if (!questionnaire) return res.status(404).json({ error: 'Questionnaire not found' });
-
     // Map step number to response key
     const stepKeys = ['industry', 'modules', 'entities', 'workflows', 'settings'];
     const key = stepKeys[step];
 
     if (!key) return res.status(400).json({ error: 'Invalid step number' });
 
-    questionnaire.responses[key] = responses;
-    questionnaire.currentStep = Math.max(questionnaire.currentStep, step + 1);
-    await questionnaire.save();
+    // Use findOneAndUpdate to avoid Mongoose Map/Mixed type validation issues
+    const questionnaire = await Questionnaire.findOneAndUpdate(
+      { projectId },
+      {
+        $set: { [`responses.${key}`]: JSON.parse(JSON.stringify(responses)) },
+        $max: { currentStep: step + 1 }
+      },
+      { new: true }
+    );
+    if (!questionnaire) return res.status(404).json({ error: 'Questionnaire not found' });
 
     res.json(questionnaire);
   } catch (error) {
@@ -90,8 +94,8 @@ exports.complete = async (req, res, next) => {
     const questionnaire = await Questionnaire.findOne({ projectId });
     if (!questionnaire) return res.status(404).json({ error: 'Questionnaire not found' });
 
-    const project = await Project.findById(projectId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const existingProject = await Project.findById(projectId);
+    if (!existingProject) return res.status(404).json({ error: 'Project not found' });
 
     // Build modules from questionnaire responses
     const selectedModules = questionnaire.responses.modules?.selected || [];
@@ -106,7 +110,15 @@ exports.complete = async (req, res, next) => {
         position: { x: 0, y: 0 },
         entities: def.defaultEntities.map(entity => ({
           name: entity.name,
-          fields: [...entity.fields]
+          fields: entity.fields.map(f => {
+            const field = { name: f.name, type: f.type };
+            if (f.required) field.required = f.required;
+            if (f.unique) field.unique = f.unique;
+            if (f.ref) field.ref = f.ref;
+            if (f.enumValues) field.enumValues = [...f.enumValues];
+            if (f.defaultValue !== undefined) field.defaultValue = f.defaultValue;
+            return field;
+          })
         })),
         apis: generateDefaultApis(def),
         workflows: []
@@ -121,18 +133,25 @@ exports.complete = async (req, res, next) => {
       };
     });
 
-    // Apply settings
+    // Apply settings - use findByIdAndUpdate to avoid Mongoose nested subdocument validation bug
     const settings = questionnaire.responses.settings || {};
-    project.modules = modules;
-    project.settings = {
-      database: settings.database || 'mongodb',
-      authentication: settings.authentication !== false,
-      authMethod: settings.authMethod || 'jwt',
-      frontend: settings.frontend !== false,
-      docker: settings.docker !== false
-    };
-    project.status = 'designing';
-    await project.save();
+    const project = await Project.findByIdAndUpdate(
+      projectId,
+      {
+        $set: {
+          modules: JSON.parse(JSON.stringify(modules)),
+          settings: {
+            database: settings.database || 'mongodb',
+            authentication: settings.authentication !== false,
+            authMethod: settings.authMethod || 'jwt',
+            frontend: settings.frontend !== false,
+            docker: settings.docker !== false
+          },
+          status: 'designing'
+        }
+      },
+      { new: true }
+    );
 
     questionnaire.completed = true;
     await questionnaire.save();

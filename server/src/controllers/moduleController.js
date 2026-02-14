@@ -29,12 +29,16 @@ exports.getProjectModules = async (req, res, next) => {
 exports.updateModules = async (req, res, next) => {
   try {
     const { modules, relationships } = req.body;
-    const project = await Project.findById(req.params.projectId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const update = {};
+    if (modules) update.modules = JSON.parse(JSON.stringify(modules));
+    if (relationships) update.relationships = JSON.parse(JSON.stringify(relationships));
 
-    if (modules) project.modules = modules;
-    if (relationships) project.relationships = relationships;
-    await project.save();
+    const project = await Project.findByIdAndUpdate(
+      req.params.projectId,
+      { $set: update },
+      { new: true }
+    );
+    if (!project) return res.status(404).json({ error: 'Project not found' });
 
     res.json({ modules: project.modules, relationships: project.relationships });
   } catch (error) {

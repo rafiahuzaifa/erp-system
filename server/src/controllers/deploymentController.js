@@ -46,8 +46,7 @@ exports.deploy = async (req, res, next) => {
       envVars: req.body.envVars || {}
     });
 
-    project.status = 'deploying';
-    await project.save();
+    await Project.findByIdAndUpdate(project._id, { $set: { status: 'deploying' } });
 
     try {
       emitEvent('status', { status: 'building', message: `Deploying via ${type}...`, deployType: type });
@@ -64,8 +63,7 @@ exports.deploy = async (req, res, next) => {
         healthCheckUrl: `http://localhost:${result.port}/api/health`
       });
 
-      project.status = 'deployed';
-      await project.save();
+      await Project.findByIdAndUpdate(project._id, { $set: { status: 'deployed' } });
 
       emitEvent('complete', {
         status: 'running',
@@ -77,8 +75,7 @@ exports.deploy = async (req, res, next) => {
     } catch (deployError) {
       logger.error('Deployment failed:', deployError);
       await deployment.update({ status: 'failed', errorMessage: deployError.message });
-      project.status = 'failed';
-      await project.save();
+      await Project.findByIdAndUpdate(project._id, { $set: { status: 'failed' } });
       emitEvent('error', { message: deployError.message });
     }
 
@@ -165,11 +162,7 @@ exports.stop = async (req, res, next) => {
 
     await deployment.update({ status: 'stopped', stoppedAt: new Date() });
 
-    const project = await Project.findById(req.params.projectId);
-    if (project) {
-      project.status = 'generated';
-      await project.save();
-    }
+    await Project.findByIdAndUpdate(req.params.projectId, { $set: { status: 'generated' } });
 
     res.json({ message: 'Deployment stopped', deployment });
   } catch (error) {

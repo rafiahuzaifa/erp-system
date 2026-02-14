@@ -5,7 +5,7 @@ const {{camelCase entity.name}}Schema = new mongoose.Schema({
   {{camelCase this.name}}: {
     type: {{mongooseType this.type}},
 {{#ifEq this.type "Enum"}}
-    enum: [{{{join this.enumValues "', '"}}}],
+    enum: ['{{{join this.enumValues "', '"}}}'],
 {{/ifEq}}
 {{#if this.required}}
     required: true,
@@ -17,7 +17,7 @@ const {{camelCase entity.name}}Schema = new mongoose.Schema({
     ref: '{{this.ref}}',
 {{/if}}
 {{#if this.defaultValue}}
-    default: {{this.defaultValue}},
+    default: {{{jsValue this.defaultValue}}},
 {{/if}}
   },
 {{/each}}

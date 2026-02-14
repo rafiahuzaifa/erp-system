@@ -12,20 +12,9 @@ const questionnaireSchema = new mongoose.Schema({
     },
     modules: {
       selected: [String],
-      priorities: { type: Map, of: Number }
+      priorities: { type: mongoose.Schema.Types.Mixed, default: {} }
     },
-    entities: {
-      type: Map,
-      of: [{
-        name: String,
-        customFields: [{
-          name: String,
-          type: String,
-          required: Boolean
-        }],
-        removeDefaults: [String]
-      }]
-    },
+    entities: { type: mongoose.Schema.Types.Mixed, default: {} },
     workflows: [{
       moduleName: String,
       workflowName: String,
