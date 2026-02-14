@@ -1,0 +1,241 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+
+{{#each module.entities}}
+// ==================== {{pascalCase this.name}} Section ====================
+
+function {{pascalCase this.name}}List() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+
+  const fetchItems = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/{{kebabCase (pluralize this.name)}}`);
+      setItems(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchItems(); }, []);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure?')) return;
+    try {
+      await axios.delete(`${API_BASE}/{{kebabCase (pluralize this.name)}}/${id}`);
+      fetchItems();
+    } catch (err) {
+      console.error('Failed to delete:', err);
+    }
+  };
+
+  if (loading) return <div className="text-center py-4">Loading...</div>;
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">{{pascalCase (pluralize this.name)}}</h2>
+        <button
+          onClick={() => { setEditItem(null); setShowForm(true); }}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+        >
+          Add {{pascalCase this.name}}
+        </button>
+      </div>
+
+      {showForm && (
+        <{{pascalCase this.name}}Form
+          item={editItem}
+          onSave={() => { setShowForm(false); fetchItems(); }}
+          onCancel={() => setShowForm(false)}
+        />
+      )}
+
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+{{#each this.fields}}
+{{#ifNotEq this.type "ObjectId"}}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{this.name}}</th>
+{{/ifNotEq}}
+{{/each}}
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {items.map((item) => (
+              <tr key={item._id} className="hover:bg-gray-50">
+{{#each this.fields}}
+{{#ifNotEq this.type "ObjectId"}}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {String(item.{{camelCase this.name}} ?? '')}
+                </td>
+{{/ifNotEq}}
+{{/each}}
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                  <button
+                    onClick={() => { setEditItem(item); setShowForm(true); }}
+                    className="text-indigo-600 hover:text-indigo-900 mr-3"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item._id)}
+                    className="text-red-600 hover:text-red-900"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {items.length === 0 && (
+          <p className="text-center py-8 text-gray-500">No {{lowerCase (pluralize this.name)}} yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function {{pascalCase this.name}}Form({ item, onSave, onCancel }) {
+  const [form, setForm] = useState(item || {});
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (item?._id) {
+        await axios.put(`${API_BASE}/{{kebabCase (pluralize this.name)}}/${item._id}`, form);
+      } else {
+        await axios.post(`${API_BASE}/{{kebabCase (pluralize this.name)}}`, form);
+      }
+      onSave();
+    } catch (err) {
+      console.error('Failed to save:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white shadow rounded-lg p-6 mb-6">
+      <h3 className="text-lg font-semibold mb-4">{item ? 'Edit' : 'New'} {{pascalCase this.name}}</h3>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+{{#each this.fields}}
+{{#ifNotEq this.type "ObjectId"}}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{{this.name}}</label>
+{{#ifEq this.type "Boolean"}}
+          <input
+            type="checkbox"
+            checked={form.{{camelCase this.name}} || false}
+            onChange={e => setForm({...form, {{camelCase this.name}}: e.target.checked})}
+            className="rounded border-gray-300"
+          />
+{{else}}
+{{#ifEq this.type "Enum"}}
+          <select
+            value={form.{{camelCase this.name}} || ''}
+            onChange={e => setForm({...form, {{camelCase this.name}}: e.target.value})}
+            className="w-full border rounded-lg px-3 py-2"
+          >
+            <option value="">Select...</option>
+{{#each this.enumValues}}
+            <option value="{{this}}">{{this}}</option>
+{{/each}}
+          </select>
+{{else}}
+{{#ifEq this.type "Number"}}
+          <input
+            type="number"
+            value={form.{{camelCase this.name}} ?? ''}
+            onChange={e => setForm({...form, {{camelCase this.name}}: e.target.value ? Number(e.target.value) : ''})}
+            className="w-full border rounded-lg px-3 py-2"
+{{#if this.required}}
+            required
+{{/if}}
+          />
+{{else}}
+{{#ifEq this.type "Date"}}
+          <input
+            type="date"
+            value={form.{{camelCase this.name}} ? new Date(form.{{camelCase this.name}}).toISOString().split('T')[0] : ''}
+            onChange={e => setForm({...form, {{camelCase this.name}}: e.target.value})}
+            className="w-full border rounded-lg px-3 py-2"
+{{#if this.required}}
+            required
+{{/if}}
+          />
+{{else}}
+          <input
+            type="text"
+            value={form.{{camelCase this.name}} || ''}
+            onChange={e => setForm({...form, {{camelCase this.name}}: e.target.value})}
+            className="w-full border rounded-lg px-3 py-2"
+{{#if this.required}}
+            required
+{{/if}}
+          />
+{{/ifEq}}
+{{/ifEq}}
+{{/ifEq}}
+{{/ifEq}}
+        </div>
+{{/ifNotEq}}
+{{/each}}
+        <div className="md:col-span-2 flex justify-end space-x-3">
+          <button type="button" onClick={onCancel} className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+{{/each}}
+
+// ==================== Main Page ====================
+
+export default function {{pascalCase module.name}}Page() {
+  const [activeTab, setActiveTab] = useState('{{camelCase module.entities.[0].name}}');
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">{{module.displayName}}</h1>
+
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="flex space-x-4">
+{{#each module.entities}}
+          <button
+            onClick={() => setActiveTab('{{camelCase this.name}}')}
+            className={`py-2 px-4 text-sm font-medium rounded-t-lg ${
+              activeTab === '{{camelCase this.name}}'
+                ? 'bg-white border-b-2 border-indigo-500 text-indigo-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {{pascalCase (pluralize this.name)}}
+          </button>
+{{/each}}
+        </nav>
+      </div>
+
+{{#each module.entities}}
+      {activeTab === '{{camelCase this.name}}' && <{{pascalCase this.name}}List />}
+{{/each}}
+    </div>
+  );
+}

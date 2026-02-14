@@ -1,0 +1,91 @@
+const {{pascalCase entity.name}} = require('../models/{{pascalCase entity.name}}');
+
+// Get all {{pluralize entity.name}}
+exports.getAll = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, sort = '-createdAt' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [items, total] = await Promise.all([
+      {{pascalCase entity.name}}.find()
+        .sort(sort)
+        .skip(skip)
+        .limit(parseInt(limit)){{#each entity.fields}}{{#if this.ref}}
+        .populate('{{camelCase this.name}}'){{/if}}{{/each}},
+      {{pascalCase entity.name}}.countDocuments()
+    ]);
+
+    res.json({
+      data: items,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get single {{entity.name}} by ID
+exports.getById = async (req, res) => {
+  try {
+    const item = await {{pascalCase entity.name}}.findById(req.params.id){{#each entity.fields}}{{#if this.ref}}
+      .populate('{{camelCase this.name}}'){{/if}}{{/each}};
+    if (!item) {
+      return res.status(404).json({ error: '{{pascalCase entity.name}} not found' });
+    }
+    res.json(item);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Create new {{entity.name}}
+exports.create = async (req, res) => {
+  try {
+    const item = new {{pascalCase entity.name}}(req.body);
+    await item.save();
+    res.status(201).json(item);
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update {{entity.name}}
+exports.update = async (req, res) => {
+  try {
+    const item = await {{pascalCase entity.name}}.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!item) {
+      return res.status(404).json({ error: '{{pascalCase entity.name}} not found' });
+    }
+    res.json(item);
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Delete {{entity.name}}
+exports.remove = async (req, res) => {
+  try {
+    const item = await {{pascalCase entity.name}}.findByIdAndDelete(req.params.id);
+    if (!item) {
+      return res.status(404).json({ error: '{{pascalCase entity.name}} not found' });
+    }
+    res.json({ message: '{{pascalCase entity.name}} deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

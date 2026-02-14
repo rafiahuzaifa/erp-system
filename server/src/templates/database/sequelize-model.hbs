@@ -1,0 +1,35 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const {{pascalCase entity.name}} = sequelize.define('{{pascalCase entity.name}}', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+{{#each entity.fields}}
+  {{camelCase this.name}}: {
+    type: {{sequelizeType this.type}},
+{{#if this.required}}
+    allowNull: false,
+{{/if}}
+{{#if this.unique}}
+    unique: true,
+{{/if}}
+{{#if this.defaultValue}}
+    defaultValue: {{this.defaultValue}},
+{{/if}}
+{{#ifEq this.type "Enum"}}
+    validate: {
+      isIn: [[{{{join this.enumValues "', '"}}}]]
+    },
+{{/ifEq}}
+  },
+{{/each}}
+}, {
+  tableName: '{{kebabCase (pluralize entity.name)}}',
+  timestamps: true,
+  underscored: true
+});
+
+module.exports = {{pascalCase entity.name}};

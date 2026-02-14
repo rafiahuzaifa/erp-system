@@ -1,0 +1,47 @@
+import React from 'react';
+
+export function {{pascalCase entity.name}}Card({ item, onEdit, onDelete }) {
+  return (
+    <div className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
+      <div className="flex justify-between items-start">
+        <div>
+{{#each entity.fields}}
+{{#if @first}}
+          <h3 className="text-lg font-semibold text-gray-900">{item.{{camelCase this.name}}}</h3>
+{{else}}
+{{#ifNotEq this.type "ObjectId"}}
+          <p className="text-sm text-gray-600">
+            <span className="font-medium">{{this.name}}:</span> {String(item.{{camelCase this.name}} ?? 'N/A')}
+          </p>
+{{/ifNotEq}}
+{{/if}}
+{{/each}}
+        </div>
+        <div className="flex space-x-2">
+          <button onClick={() => onEdit(item)} className="text-indigo-600 hover:text-indigo-800 text-sm">
+            Edit
+          </button>
+          <button onClick={() => onDelete(item._id)} className="text-red-600 hover:text-red-800 text-sm">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function {{pascalCase entity.name}}Badge({ status }) {
+  const colors = {
+    active: 'bg-green-100 text-green-800',
+    inactive: 'bg-gray-100 text-gray-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    draft: 'bg-blue-100 text-blue-800'
+  };
+  const colorClass = colors[status] || 'bg-gray-100 text-gray-800';
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+      {status}
+    </span>
+  );
+}

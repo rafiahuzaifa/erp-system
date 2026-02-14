@@ -1,0 +1,20 @@
+const express = require('express');
+const router = express.Router();
+const {{camelCase entity.name}}Controller = require('../controllers/{{camelCase entity.name}}Controller');
+
+// GET /api/{{kebabCase (pluralize entity.name)}}
+router.get('/', {{camelCase entity.name}}Controller.getAll);
+
+// GET /api/{{kebabCase (pluralize entity.name)}}/:id
+router.get('/:id', {{camelCase entity.name}}Controller.getById);
+
+// POST /api/{{kebabCase (pluralize entity.name)}}
+router.post('/', {{camelCase entity.name}}Controller.create);
+
+// PUT /api/{{kebabCase (pluralize entity.name)}}/:id
+router.put('/:id', {{camelCase entity.name}}Controller.update);
+
+// DELETE /api/{{kebabCase (pluralize entity.name)}}/:id
+router.delete('/:id', {{camelCase entity.name}}Controller.remove);
+
+module.exports = router;

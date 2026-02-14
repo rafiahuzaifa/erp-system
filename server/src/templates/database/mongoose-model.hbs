@@ -1,0 +1,33 @@
+const mongoose = require('mongoose');
+
+const {{camelCase entity.name}}Schema = new mongoose.Schema({
+{{#each entity.fields}}
+  {{camelCase this.name}}: {
+    type: {{mongooseType this.type}},
+{{#ifEq this.type "Enum"}}
+    enum: [{{{join this.enumValues "', '"}}}],
+{{/ifEq}}
+{{#if this.required}}
+    required: true,
+{{/if}}
+{{#if this.unique}}
+    unique: true,
+{{/if}}
+{{#if this.ref}}
+    ref: '{{this.ref}}',
+{{/if}}
+{{#if this.defaultValue}}
+    default: {{this.defaultValue}},
+{{/if}}
+  },
+{{/each}}
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Indexes for common queries
+{{camelCase entity.name}}Schema.index({ createdAt: -1 });
+
+module.exports = mongoose.model('{{pascalCase entity.name}}', {{camelCase entity.name}}Schema);

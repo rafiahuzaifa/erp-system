@@ -1,0 +1,61 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+
+{{#each modules}}
+import {{pascalCase this.name}}Page from './pages/{{pascalCase this.name}}Page';
+{{/each}}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-gray-50">
+        <nav className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16">
+              <div className="flex items-center">
+                <Link to="/" className="text-xl font-bold text-indigo-600">
+                  {{project.name}}
+                </Link>
+              </div>
+              <div className="flex items-center space-x-4">
+{{#each modules}}
+                <Link to="/{{kebabCase this.name}}" className="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">
+                  {{this.displayName}}
+                </Link>
+{{/each}}
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <Routes>
+            <Route path="/" element={<Home />} />
+{{#each modules}}
+            <Route path="/{{kebabCase this.name}}/*" element={<{{pascalCase this.name}}Page />} />
+{{/each}}
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
+  );
+}
+
+function Home() {
+  return (
+    <div className="text-center py-12">
+      <h1 className="text-4xl font-bold text-gray-900 mb-4">{{project.name}}</h1>
+      <p className="text-xl text-gray-600 mb-8">{{project.description}}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+{{#each modules}}
+        <Link to="/{{kebabCase this.name}}" className="block p-6 bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+          <h3 className="text-lg font-semibold text-gray-900">{{this.displayName}}</h3>
+          <p className="mt-2 text-gray-600">Manage {{lowerCase this.displayName}}</p>
+        </Link>
+{{/each}}
+      </div>
+    </div>
+  );
+}
+
+export default App;
