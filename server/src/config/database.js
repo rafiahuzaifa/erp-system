@@ -14,19 +14,25 @@ const connectMongoDB = async () => {
   }
 };
 
-// PostgreSQL connection via Sequelize
-const sequelize = new Sequelize(env.PG_DATABASE, env.PG_USER, env.PG_PASSWORD, {
-  host: env.PG_HOST,
-  port: env.PG_PORT,
-  dialect: 'postgres',
-  logging: env.NODE_ENV === 'development' ? (msg) => logger.debug(msg) : false,
-  pool: {
-    max: 10,
-    min: 0,
-    acquire: 30000,
-    idle: 10000
-  }
-});
+// PostgreSQL connection via Sequelize (supports DATABASE_URL for Neon/production)
+const pgConfig = process.env.DATABASE_URL
+  ? {
+      dialect: 'postgres',
+      dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
+      logging: false,
+      pool: { max: 10, min: 0, acquire: 30000, idle: 10000 }
+    }
+  : {
+      host: env.PG_HOST,
+      port: env.PG_PORT,
+      dialect: 'postgres',
+      logging: env.NODE_ENV === 'development' ? (msg) => logger.debug(msg) : false,
+      pool: { max: 10, min: 0, acquire: 30000, idle: 10000 }
+    };
+
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(process.env.DATABASE_URL, pgConfig)
+  : new Sequelize(env.PG_DATABASE, env.PG_USER, env.PG_PASSWORD, pgConfig);
 
 const connectPostgres = async () => {
   try {
