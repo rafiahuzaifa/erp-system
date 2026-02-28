@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, RefreshCw, FileCode, FolderTree, ChevronRight, ChevronDown, Rocket, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Play, RefreshCw, FileCode, FolderTree, ChevronRight, ChevronDown, Rocket, AlertCircle, CheckCircle2, Loader2, Download } from 'lucide-react';
 import { Highlight, themes } from 'prism-react-renderer';
 import useProjectStore from '../store/useProjectStore';
 import useSSE from '../hooks/useSSE';
-import { getCodegenStatus, listFiles, getFile } from '../api/codegen';
+import { getCodegenStatus, listFiles, getFile, downloadProject } from '../api/codegen';
+import { apiUrl } from '../api/config';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
 function FileTreeNode({ node, onSelect, selectedPath, depth = 0 }) {
@@ -56,7 +57,7 @@ export default function CodeGenPage() {
   const [initialLoading, setInitialLoading] = useState(true);
 
   const { events, status: sseStatus, error: sseError, connect } = useSSE(
-    `/api/codegen/${id}/generate`
+    apiUrl(`/api/codegen/${id}/generate`)
   );
 
   useEffect(() => {
@@ -68,7 +69,9 @@ export default function CodeGenPage() {
     try {
       const { data } = await getCodegenStatus(id);
       setGenStatus(data);
-      if (data.projectStatus === 'generated' || data.projectStatus === 'deployed') {
+      // Load files if code generation is complete, regardless of project.status
+      // (project.status can revert to 'designing' when user edits modules)
+      if (data.codeGeneration?.status === 'complete') {
         await loadFiles();
       }
     } catch (err) {
@@ -105,6 +108,27 @@ export default function CodeGenPage() {
     connect();
   };
 
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const { data } = await downloadProject(id);
+      const url = URL.createObjectURL(new Blob([data], { type: 'application/zip' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project?.name || 'app'}-generated.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed:', err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   useEffect(() => {
     if (sseStatus === 'complete') {
       fetchProject(id);
@@ -116,7 +140,11 @@ export default function CodeGenPage() {
   const progressEvents = events.filter(e => e.type === 'phase' || e.type === 'file' || e.type === 'status');
   const latestEvent = events[events.length - 1];
   const isGenerating = sseStatus === 'connecting' || sseStatus === 'connected';
-  const isGenerated = project?.status === 'generated' || project?.status === 'deployed';
+  // isGenerated: true if there is completed code OR project status is generated/deployed
+  const isGenerated =
+    genStatus?.codeGeneration?.status === 'complete' ||
+    project?.status === 'generated' ||
+    project?.status === 'deployed';
 
   if (initialLoading) return <LoadingSpinner className="py-20" />;
 
@@ -135,6 +163,19 @@ export default function CodeGenPage() {
           <p className="text-gray-500">{project?.name || 'Project'}</p>
         </div>
         <div className="flex gap-3">
+          {isGenerated && (
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {downloading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Downloading...</>
+              ) : (
+                <><Download className="w-4 h-4" /> Download ZIP</>
+              )}
+            </button>
+          )}
           {isGenerated && (
             <button
               onClick={() => navigate(`/projects/${id}/deploy`)}

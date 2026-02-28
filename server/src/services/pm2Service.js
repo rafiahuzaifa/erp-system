@@ -30,39 +30,48 @@ class PM2Service {
     return (str || '').replace(/([a-z])([A-Z])/g, '$1-$2').replace(/[\s_]+/g, '-').toLowerCase();
   }
 
-  async buildAndDeploy(project, generatedCode, envVars, emitEvent) {
-    const projectDir = await this.scaffolder.writeProjectToDisk(project._id, generatedCode.files);
-    const processName = `erp-${this.toKebabCase(project.name)}-${project._id.toString().slice(-6)}`;
-
-    // Phase 1: Install dependencies
-    emitEvent('deploy-phase', { phase: 'installing', message: 'Installing dependencies...' });
-
-    await new Promise((resolve, reject) => {
-      const npmInstall = exec('npm install --production', {
-        cwd: projectDir,
-        env: { ...process.env, NODE_ENV: 'production' }
-      });
-
-      npmInstall.stdout.on('data', (data) => {
-        emitEvent('build-log', { message: data.toString().trim() });
-      });
-
-      npmInstall.stderr.on('data', (data) => {
+  runCommand(cmd, cwd, envOverrides, emitEvent) {
+    return new Promise((resolve, reject) => {
+      const proc = exec(cmd, { cwd, env: { ...process.env, ...envOverrides }, timeout: 300000 });
+      proc.stdout.on('data', (data) => {
         const msg = data.toString().trim();
-        if (msg && !msg.startsWith('npm warn')) {
+        if (msg) emitEvent('build-log', { message: msg });
+      });
+      proc.stderr.on('data', (data) => {
+        const msg = data.toString().trim();
+        if (msg && !msg.startsWith('npm warn') && !msg.startsWith('npm notice')) {
           emitEvent('build-log', { message: msg });
         }
       });
-
-      npmInstall.on('close', (code) => {
+      proc.on('close', (code) => {
         if (code === 0) resolve();
-        else reject(new Error(`npm install failed with code ${code}`));
+        else reject(new Error(`"${cmd}" failed with exit code ${code}`));
       });
-
-      npmInstall.on('error', reject);
+      proc.on('error', reject);
     });
+  }
 
-    // Phase 2: Start the process
+  async buildAndDeploy(project, generatedCode, envVars, emitEvent) {
+    const projectDir = await this.scaffolder.writeProjectToDisk(project._id, generatedCode.files);
+    const processName = `erp-${this.toKebabCase(project.name)}-${project._id.toString().slice(-6)}`;
+    const clientDir = path.join(projectDir, 'client');
+    const hasClient = fs.existsSync(path.join(clientDir, 'package.json'));
+
+    // Phase 1: Install backend dependencies
+    emitEvent('deploy-phase', { phase: 'installing', message: 'Installing backend dependencies...' });
+    await this.runCommand('npm install --production', projectDir, { NODE_ENV: 'production' }, emitEvent);
+
+    // Phase 2 (optional): Build React frontend
+    if (hasClient) {
+      emitEvent('deploy-phase', { phase: 'frontend-install', message: 'Installing frontend dependencies...' });
+      await this.runCommand('npm install', clientDir, {}, emitEvent);
+
+      emitEvent('deploy-phase', { phase: 'frontend-build', message: 'Building React frontend (this may take a minute)...' });
+      await this.runCommand('npm run build', clientDir, { NODE_ENV: 'production' }, emitEvent);
+      emitEvent('build-log', { message: '✓ Frontend build complete' });
+    }
+
+    // Phase 3: Start the process
     const port = this.allocatePort();
     emitEvent('deploy-phase', { phase: 'starting', message: `Starting application on port ${port}...` });
 

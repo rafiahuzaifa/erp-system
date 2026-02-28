@@ -1,3 +1,4 @@
+const archiver = require('archiver');
 const Project = require('../models/mongo/Project');
 const GeneratedCode = require('../models/mongo/GeneratedCode');
 const Questionnaire = require('../models/mongo/Questionnaire');
@@ -153,6 +154,42 @@ exports.regenerate = async (req, res, next) => {
     }
 
     res.end();
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.download = async (req, res, next) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const generatedCode = await GeneratedCode.findOne({
+      projectId: project._id,
+      status: 'complete'
+    }).sort({ version: -1 });
+
+    if (!generatedCode) return res.status(404).json({ error: 'No generated code found' });
+
+    const safeName = (project.name || 'app').replace(/[^a-z0-9-_]/gi, '-').toLowerCase();
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}-v${generatedCode.version}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+
+    archive.on('error', (err) => {
+      logger.error('Archive error:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Archive creation failed' });
+    });
+
+    archive.pipe(res);
+
+    for (const file of generatedCode.files) {
+      archive.append(file.content || '', { name: file.path });
+    }
+
+    await archive.finalize();
   } catch (error) {
     next(error);
   }

@@ -10,6 +10,7 @@ const env = {
   PG_DATABASE: process.env.PG_DATABASE || 'erp_builder',
   PG_USER: process.env.PG_USER || 'erp_admin',
   PG_PASSWORD: process.env.PG_PASSWORD || 'erp_secret',
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
   JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-me',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',

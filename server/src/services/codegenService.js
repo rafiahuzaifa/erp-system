@@ -12,7 +12,7 @@ class CodegenService {
     this.scaffolder = new ProjectScaffolder();
   }
 
-  async generateProject(project, questionnaire, emitEvent) {
+  async generateProject(project, _questionnaire, emitEvent) {
     const startTime = Date.now();
     const allFiles = [];
     const generationLog = [];
@@ -56,6 +56,13 @@ class CodegenService {
     await generatedCode.save();
 
     try {
+      const aiProvider = this.aiService.provider;
+      emitEvent('status', {
+        status: 'generating',
+        message: `Starting code generation${aiProvider ? ` with ${aiProvider.toUpperCase()} AI` : ' (template mode)'}...`,
+        aiProvider: aiProvider || 'none'
+      });
+
       // ===== Phase 1: Scaffold =====
       const phase1Start = Date.now();
       emitEvent('phase', { phase: 'scaffold', message: 'Creating project structure...' });
@@ -331,6 +338,18 @@ class CodegenService {
 
       emitEvent('progress', { percent: 95, filesGenerated: allFiles.length });
 
+      // ===== Phase Final: README =====
+      emitEvent('phase', { phase: 'readme', message: 'Generating documentation...' });
+      const readmeContent = this.generateReadme(projectData);
+      allFiles.push({
+        path: 'README.md',
+        content: readmeContent,
+        language: 'markdown',
+        generatedBy: 'template',
+        module: 'core'
+      });
+      emitEvent('file', { path: 'README.md', status: 'generated' });
+
       // ===== Finalize =====
       generatedCode.files = allFiles;
       generatedCode.structure = {
@@ -447,6 +466,161 @@ class CodegenService {
   generateFallbackDockerCompose(project) {
     const name = this.toKebabCase(project.name);
     return `version: '3.8'\nservices:\n  app:\n    build: .\n    ports:\n      - "3000:3000"\n    environment:\n      - MONGODB_URI=mongodb://mongodb:27017/${name}\n    depends_on:\n      - mongodb\n  mongodb:\n    image: mongo:7\n    volumes:\n      - mongo_data:/data/db\nvolumes:\n  mongo_data:\n`;
+  }
+
+  generateReadme(project) {
+    const hasFrontend = project.settings?.frontend;
+    const hasDocker = project.settings?.docker;
+    const dbType = project.settings?.database || 'mongodb';
+    const port = project.settings?.port || 3000;
+    const clientPort = 5173;
+
+    const moduleList = project.modules.map(m => {
+      const entities = m.entities.map(e => `  - **${e.name}** (${e.fields?.length || 0} fields)`).join('\n');
+      return `- **${m.displayName || m.name}** module\n${entities}`;
+    }).join('\n');
+
+    const envVars = [
+      `PORT=${port}`,
+      `NODE_ENV=development`,
+      dbType === 'mongodb'
+        ? `MONGODB_URI=mongodb://localhost:27017/${this.toKebabCase(project.name)}`
+        : `DB_HOST=localhost\nDB_PORT=5432\nDB_NAME=${this.toKebabCase(project.name)}\nDB_USER=postgres\nDB_PASSWORD=your_password`,
+      hasFrontend ? `REACT_APP_API_URL=http://localhost:${port}/api` : null,
+      `JWT_SECRET=change_this_to_a_strong_secret`,
+    ].filter(Boolean).join('\n');
+
+    const dockerSection = hasDocker ? `
+## Docker
+
+Run the full stack with Docker Compose:
+
+\`\`\`bash
+docker-compose up --build
+\`\`\`
+
+The app will be available at \`http://localhost:${port}\`.
+` : '';
+
+    const frontendSection = hasFrontend ? `
+## Frontend (React)
+
+The React frontend lives in the \`client/\` directory.
+
+\`\`\`bash
+cd client
+npm install
+npm run dev   # starts on http://localhost:${clientPort}
+\`\`\`
+
+> Set \`REACT_APP_API_URL\` in \`client/.env\` to match your backend URL.
+` : '';
+
+    return `# ${project.name}
+
+${project.description || 'Generated with ERP Builder'}
+
+---
+
+## Software Requirements
+
+| Requirement | Minimum Version | Notes |
+|---|---|---|
+| **Node.js** | v18.x or later | [nodejs.org](https://nodejs.org) |
+| **npm** | v9.x or later | Bundled with Node.js |
+${dbType === 'mongodb' ? `| **MongoDB** | v6.0 or later | [mongodb.com](https://www.mongodb.com) |` : `| **PostgreSQL** | v14 or later | [postgresql.org](https://www.postgresql.org) |`}
+${hasFrontend ? `| **Vite** | v4.x or later | Installed via npm |` : ''}
+${hasDocker ? `| **Docker** | v24.x or later | [docker.com](https://www.docker.com) — optional, for containerised deployment |` : ''}
+
+---
+
+## Project Modules
+
+${moduleList}
+
+---
+
+## Getting Started
+
+### 1. Install dependencies
+
+\`\`\`bash
+npm install
+\`\`\`
+
+### 2. Configure environment
+
+Create a \`.env\` file in the project root:
+
+\`\`\`env
+${envVars}
+\`\`\`
+
+### 3. Seed the database (optional)
+
+\`\`\`bash
+node src/seed.js
+\`\`\`
+
+### 4. Start the server
+
+\`\`\`bash
+npm start          # production
+npm run dev        # development (with nodemon)
+\`\`\`
+
+The API will be available at \`http://localhost:${port}/api\`.
+${frontendSection}${dockerSection}
+---
+
+## API Endpoints
+
+${project.modules.map(m => `### ${m.displayName || m.name}
+
+${m.entities.map(e => {
+  const base = `/api/${this.toKebabCase(this.pluralize(e.name))}`;
+  return `| Method | Endpoint | Description |
+|---|---|---|
+| GET | \`${base}\` | List all (search, filter, pagination) |
+| GET | \`${base}/stats\` | Get statistics |
+| GET | \`${base}/export\` | Export as JSON |
+| GET | \`${base}/:id\` | Get by ID |
+| POST | \`${base}\` | Create new |
+| POST | \`${base}/bulk\` | Bulk create (up to 500) |
+| PUT | \`${base}/:id\` | Update |
+| DELETE | \`${base}/:id\` | Delete |`;
+}).join('\n\n')}`).join('\n\n')}
+
+---
+
+## Project Structure
+
+\`\`\`
+${project.name}/
+├── src/
+│   ├── index.js          # Express server entry point
+│   ├── models/           # Mongoose/Sequelize models
+│   ├── routes/           # Express route definitions
+│   ├── controllers/      # Request handlers
+│   └── seed.js           # Database seeder
+${hasFrontend ? `├── client/
+│   ├── src/
+│   │   ├── App.jsx       # React app root
+│   │   └── pages/        # Page components (one per module)
+│   └── package.json` : ''}
+${hasDocker ? `├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore` : ''}
+├── .env                  # Environment variables (do not commit)
+└── package.json
+\`\`\`
+
+---
+
+## License
+
+MIT — generated by [ERP Builder](https://github.com/your-org/erp-builder)
+`;
   }
 
   toCamelCase(str) {

@@ -13,12 +13,16 @@ export default function StepReview({ projectId, onComplete }) {
   const settings = responses.settings || {};
   const [completing, setCompleting] = useState(false);
 
+  const [completeError, setCompleteError] = useState(null);
+
   const handleComplete = async () => {
     setCompleting(true);
+    setCompleteError(null);
     try {
       await completeQuestionnaire(projectId);
       onComplete();
-    } catch {
+    } catch (err) {
+      setCompleteError(err.message || 'Failed to complete questionnaire');
       setCompleting(false);
     }
   };
@@ -104,6 +108,13 @@ export default function StepReview({ projectId, onComplete }) {
           </div>
         ))}
       </div>
+
+      {/* Error Display */}
+      {completeError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {completeError}
+        </div>
+      )}
 
       {/* Generate Button */}
       <button

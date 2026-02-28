@@ -2,19 +2,28 @@ const express = require('express');
 const router = express.Router();
 const {{camelCase entity.name}}Controller = require('../controllers/{{camelCase entity.name}}Controller');
 
-// GET /api/{{kebabCase (pluralize entity.name)}}
+// GET /api/{{kebabCase (pluralize entity.name)}} - List with search, filter, pagination
 router.get('/', {{camelCase entity.name}}Controller.getAll);
 
-// GET /api/{{kebabCase (pluralize entity.name)}}/:id
+// GET /api/{{kebabCase (pluralize entity.name)}}/stats - Get statistics
+router.get('/stats', {{camelCase entity.name}}Controller.getStats);
+
+// GET /api/{{kebabCase (pluralize entity.name)}}/export - Export data
+router.get('/export', {{camelCase entity.name}}Controller.exportData);
+
+// GET /api/{{kebabCase (pluralize entity.name)}}/:id - Get by ID
 router.get('/:id', {{camelCase entity.name}}Controller.getById);
 
-// POST /api/{{kebabCase (pluralize entity.name)}}
+// POST /api/{{kebabCase (pluralize entity.name)}} - Create
 router.post('/', {{camelCase entity.name}}Controller.create);
 
-// PUT /api/{{kebabCase (pluralize entity.name)}}/:id
+// POST /api/{{kebabCase (pluralize entity.name)}}/bulk - Bulk create
+router.post('/bulk', {{camelCase entity.name}}Controller.bulkCreate);
+
+// PUT /api/{{kebabCase (pluralize entity.name)}}/:id - Update
 router.put('/:id', {{camelCase entity.name}}Controller.update);
 
-// DELETE /api/{{kebabCase (pluralize entity.name)}}/:id
+// DELETE /api/{{kebabCase (pluralize entity.name)}}/:id - Delete
 router.delete('/:id', {{camelCase entity.name}}Controller.remove);
 
 module.exports = router;

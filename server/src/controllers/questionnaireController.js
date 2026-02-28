@@ -1,7 +1,9 @@
 const Questionnaire = require('../models/mongo/Questionnaire');
 const Project = require('../models/mongo/Project');
-const { getOpenAIClient } = require('../config/openai');
+const AIService = require('../services/aiService');
 const { moduleDefinitions } = require('shared/moduleDefinitions');
+
+const aiService = new AIService();
 
 exports.get = async (req, res, next) => {
   try {
@@ -50,38 +52,33 @@ exports.aiSuggest = async (req, res, next) => {
     const questionnaire = await Questionnaire.findOne({ projectId });
     if (!questionnaire) return res.status(404).json({ error: 'Questionnaire not found' });
 
-    const openai = getOpenAIClient();
-    if (!openai) {
-      // Return preset suggestions if no API key
-      return res.json(getPresetSuggestions(step, questionnaire.responses));
+    if (!aiService.isAvailable) {
+      return res.json({ ...getPresetSuggestions(step, questionnaire.responses), provider: 'preset' });
     }
 
     const prompt = buildSuggestionPrompt(step, questionnaire.responses, context);
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an ERP/business systems consultant. Provide brief, actionable suggestions for building a custom business application. Return JSON format with "suggestions" (array of strings) and "reasoning" (string).'
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 1000,
-      response_format: { type: 'json_object' }
+    const aiResult = await aiService.chat(
+      'You are an ERP/business systems consultant. Provide brief, actionable suggestions for building a custom business application. Return JSON with "suggestions" (array of strings) and "reasoning" (string).',
+      prompt,
+      { json: true }
+    );
+
+    if (!aiResult) {
+      return res.json({ ...getPresetSuggestions(step, questionnaire.responses), provider: 'preset' });
+    }
+
+    // Store suggestion using findByIdAndUpdate to avoid Mongoose Mixed type save() crash
+    await Questionnaire.findByIdAndUpdate(questionnaire._id, {
+      $push: {
+        aiSuggestions: {
+          step,
+          suggestions: aiResult.suggestions || [],
+          reasoning: aiResult.reasoning || ''
+        }
+      }
     });
 
-    const aiResult = JSON.parse(response.choices[0].message.content);
-
-    // Store suggestion
-    questionnaire.aiSuggestions.push({
-      step,
-      suggestions: aiResult.suggestions,
-      reasoning: aiResult.reasoning
-    });
-    await questionnaire.save();
-
-    res.json(aiResult);
+    res.json({ ...aiResult, provider: aiService.provider });
   } catch (error) {
     next(error);
   }
@@ -153,10 +150,14 @@ exports.complete = async (req, res, next) => {
       { new: true }
     );
 
-    questionnaire.completed = true;
-    await questionnaire.save();
+    // Use findByIdAndUpdate to avoid Mongoose Mixed type save() crash
+    const updatedQuestionnaire = await Questionnaire.findByIdAndUpdate(
+      questionnaire._id,
+      { $set: { completed: true } },
+      { new: true }
+    );
 
-    res.json({ project, questionnaire });
+    res.json({ project, questionnaire: updatedQuestionnaire });
   } catch (error) {
     next(error);
   }

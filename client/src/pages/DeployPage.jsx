@@ -4,6 +4,7 @@ import { Rocket, Square, RotateCcw, Trash2, ExternalLink, Terminal, AlertCircle,
 import useProjectStore from '../store/useProjectStore';
 import useSSE from '../hooks/useSSE';
 import { getDeploymentStatus, stopDeployment, restartDeployment, destroyDeployment } from '../api/deployments';
+import { apiUrl } from '../api/config';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
 export default function DeployPage() {
@@ -15,10 +16,10 @@ export default function DeployPage() {
   const [actionLoading, setActionLoading] = useState(null);
 
   const { events, status: sseStatus, error: sseError, connect } = useSSE(
-    `/api/deployments/${id}/deploy`
+    apiUrl(`/api/deployments/${id}`)
   );
 
-  const logSSE = useSSE(`/api/deployments/${id}/logs`, { method: 'GET' });
+  const logSSE = useSSE(apiUrl(`/api/deployments/${id}/logs`), { method: 'GET' });
 
   useEffect(() => {
     fetchProject(id);
