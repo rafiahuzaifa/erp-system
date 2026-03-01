@@ -13,11 +13,52 @@ class DockerService {
   initDocker() {
     try {
       const Docker = require('dockerode');
-      this.docker = new Docker();
+      // Windows Docker Desktop uses a named pipe instead of Unix socket
+      const opts = process.platform === 'win32'
+        ? { socketPath: '//./pipe/docker_engine' }
+        : {};
+      this.docker = new Docker(opts);
       logger.info('Docker client initialized');
     } catch (error) {
       logger.warn('Docker not available:', error.message);
     }
+  }
+
+  writeDockerfile(projectDir) {
+    const fs = require('fs');
+    const path = require('path');
+    const hasClient = fs.existsSync(path.join(projectDir, 'client', 'package.json'));
+
+    const dockerfile = hasClient
+      ? `# Stage 1: Build React frontend
+FROM node:20-alpine AS frontend
+WORKDIR /app/client
+COPY client/package*.json ./
+RUN npm install
+COPY client/ .
+RUN npm run build
+
+# Stage 2: Run Express backend + serve built frontend
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY src/ ./src/
+COPY --from=frontend /app/client/dist ./client/dist
+EXPOSE 3000
+CMD ["node", "src/index.js"]
+`
+      : `FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY src/ ./src/
+EXPOSE 3000
+CMD ["node", "src/index.js"]
+`;
+
+    fs.writeFileSync(path.join(projectDir, 'Dockerfile'), dockerfile);
+    logger.info(`Dockerfile written (${hasClient ? 'fullstack' : 'backend-only'})`);
   }
 
   get isAvailable() {
@@ -45,6 +86,9 @@ class DockerService {
 
     // Write project to disk
     const projectDir = await this.scaffolder.writeProjectToDisk(project._id, generatedCode.files);
+
+    // Write Dockerfile (auto-detects fullstack vs backend-only)
+    this.writeDockerfile(projectDir);
 
     const imageName = `erp-builder-${project._id}`.toLowerCase();
 

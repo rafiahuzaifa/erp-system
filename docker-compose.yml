@@ -25,6 +25,36 @@ services:
       POSTGRES_PASSWORD: erp_secret
     restart: unless-stopped
 
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: erp-builder-server
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      MONGODB_URI: mongodb://mongodb:27017/erp_builder
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DATABASE: erp_builder
+      PG_USER: erp_admin
+      PG_PASSWORD: erp_secret
+      # Mount Docker socket so server can deploy generated apps via Docker
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - ./server/src:/app/server/src          # hot reload
+      - ./shared:/app/shared
+      - ./generated:/app/generated             # generated project files
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker-in-Docker
+    depends_on:
+      - mongodb
+      - postgres
+    restart: unless-stopped
+
 networks:
   default:
     name: erp-builder-network
