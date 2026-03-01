@@ -1,9 +1,15 @@
 {
-  "buildCommand": "cd client && npm install && npm run build",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build -w client",
   "outputDirectory": "client/dist",
-  "installCommand": "echo skip",
-  "framework": null,
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
