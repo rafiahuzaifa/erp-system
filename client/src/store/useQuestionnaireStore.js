@@ -43,7 +43,19 @@ const useQuestionnaireStore = create((set, get) => ({
         loading: false
       });
     } catch (error) {
-      set({ error: error.message, loading: false });
+      // Reset responses so stale data from a previous project doesn't carry over
+      set({
+        error: error.message,
+        loading: false,
+        currentStep: 0,
+        responses: {
+          industry: {},
+          modules: { selected: [], priorities: {} },
+          entities: {},
+          workflows: [],
+          settings: { database: 'mongodb', authentication: true, authMethod: 'jwt', frontend: true, docker: true }
+        }
+      });
     }
   },
 

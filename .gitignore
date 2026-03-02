@@ -10,3 +10,5 @@ generated/
 coverage/
 nul
 .claude/
+
+.vercel

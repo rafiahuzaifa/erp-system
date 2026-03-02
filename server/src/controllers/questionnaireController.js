@@ -2,6 +2,7 @@ const Questionnaire = require('../models/mongo/Questionnaire');
 const Project = require('../models/mongo/Project');
 const AIService = require('../services/aiService');
 const { moduleDefinitions } = require('shared/moduleDefinitions');
+const logger = require('../utils/logger');
 
 const aiService = new AIService();
 
@@ -27,14 +28,14 @@ exports.saveStep = async (req, res, next) => {
 
     if (!key) return res.status(400).json({ error: 'Invalid step number' });
 
-    // Use findOneAndUpdate to avoid Mongoose Map/Mixed type validation issues
+    // Use findOneAndUpdate with upsert to create questionnaire if missing (data integrity recovery)
     const questionnaire = await Questionnaire.findOneAndUpdate(
       { projectId },
       {
         $set: { [`responses.${key}`]: JSON.parse(JSON.stringify(responses)) },
         $max: { currentStep: step + 1 }
       },
-      { new: true }
+      { new: true, upsert: true }
     );
     if (!questionnaire) return res.status(404).json({ error: 'Questionnaire not found' });
 
@@ -87,11 +88,35 @@ exports.aiSuggest = async (req, res, next) => {
 exports.complete = async (req, res, next) => {
   try {
     const { projectId } = req.params;
+    logger.info(`complete endpoint called, projectId=${projectId}`);
 
-    const questionnaire = await Questionnaire.findOne({ projectId });
-    if (!questionnaire) return res.status(404).json({ error: 'Questionnaire not found' });
+    let questionnaire;
+    try {
+      questionnaire = await Questionnaire.findOne({ projectId });
+    } catch (castErr) {
+      logger.error(`[complete] findOne questionnaire error: ${castErr.message}`);
+      return res.status(400).json({ error: 'Invalid project ID', details: castErr.message });
+    }
+    // Auto-create questionnaire if missing (data integrity recovery for orphaned projects)
+    if (!questionnaire) {
+      logger.warn(`[complete] no questionnaire for projectId=${projectId}, creating one`);
+      try {
+        questionnaire = await Questionnaire.create({ projectId });
+      } catch (createErr) {
+        logger.error(`[complete] failed to create questionnaire: ${createErr.message}`);
+        return res.status(404).json({ error: 'Questionnaire not found and could not be created', details: createErr.message });
+      }
+    }
 
-    const existingProject = await Project.findById(projectId);
+    logger.info(`[complete] questionnaire found, modules=${JSON.stringify(questionnaire.responses?.modules?.selected)}`);
+
+    let existingProject;
+    try {
+      existingProject = await Project.findById(projectId);
+    } catch (castErr) {
+      logger.error(`[complete] findById project error: ${castErr.message}`);
+      return res.status(400).json({ error: 'Invalid project ID', details: castErr.message });
+    }
     if (!existingProject) return res.status(404).json({ error: 'Project not found' });
 
     // Build modules from questionnaire responses

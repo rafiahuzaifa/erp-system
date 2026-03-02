@@ -22,7 +22,9 @@ export default function StepReview({ projectId, onComplete }) {
       await completeQuestionnaire(projectId);
       onComplete();
     } catch (err) {
-      setCompleteError(err.message || 'Failed to complete questionnaire');
+      // Show the actual server error details if available
+      const serverMsg = err.response?.data?.details || err.response?.data?.error;
+      setCompleteError(serverMsg || err.message || 'Failed to complete questionnaire');
       setCompleting(false);
     }
   };

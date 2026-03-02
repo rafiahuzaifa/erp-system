@@ -13,6 +13,8 @@ const deploymentRoutes = require('./routes/deployments');
 const authRoutes = require('./routes/auth');
 const paymentRoutes = require('./routes/payments');
 const templateRoutes = require('./routes/templates');
+const { authenticate } = require('./middleware/auth');
+const previewController = require('./controllers/previewController');
 
 const app = express();
 
@@ -57,6 +59,8 @@ app.use('/api/questionnaire', questionnaireRoutes);
 app.use('/api/modules', moduleRoutes);
 app.use('/api/codegen', codegenRoutes);
 app.use('/api/deployments', deploymentRoutes);
+app.post('/api/preview/:projectId', authenticate, previewController.buildPreview);
+app.get('/api/preview/:projectId/*', authenticate, previewController.servePreview);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/templates', templateRoutes);
 

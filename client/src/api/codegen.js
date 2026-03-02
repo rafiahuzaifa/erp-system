@@ -14,3 +14,4 @@ export const createGenerateStream = (projectId) => {
 
 export const triggerGenerate = (projectId) => api.post(`/codegen/${projectId}/generate`);
 export const triggerRegenerate = (projectId, moduleId) => api.post(`/codegen/${projectId}/regenerate`, { moduleId });
+export const downloadProject = (projectId) => api.get(`/codegen/${projectId}/download`, { responseType: 'blob' });

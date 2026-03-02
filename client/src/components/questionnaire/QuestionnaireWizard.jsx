@@ -67,8 +67,8 @@ export default function QuestionnaireWizard({ projectId, onCreateProject, onComp
         {currentStep < 4 && (
           <button
             onClick={handleNext}
-            disabled={loading}
-            className="btn-primary flex items-center gap-2"
+            disabled={loading || (currentStep > 0 && !projectId)}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50"
           >
             {currentStep === 0 && !projectId ? 'Create & Continue' : 'Next'}
             <ChevronRight className="w-4 h-4" />
