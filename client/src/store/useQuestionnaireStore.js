@@ -135,6 +135,11 @@ const useQuestionnaireStore = create((set, get) => ({
   },
 
   completeQuestionnaire: async (projectId) => {
+    if (!projectId) {
+      const err = new Error('No project selected. Please create or select a project first.');
+      set({ error: err.message });
+      throw err;
+    }
     set({ loading: true });
     try {
       const res = await questionnaireApi.completeQuestionnaire(projectId);

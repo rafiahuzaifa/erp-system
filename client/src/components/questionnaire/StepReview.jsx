@@ -121,7 +121,7 @@ export default function StepReview({ projectId, onComplete }) {
       {/* Generate Button */}
       <button
         onClick={handleComplete}
-        disabled={completing || loading || !responses.modules.selected?.length}
+        disabled={completing || loading || !responses.modules.selected?.length || !projectId}
         className="w-full btn-primary py-3 text-lg flex items-center justify-center gap-2"
       >
         <Rocket className="w-5 h-5" />

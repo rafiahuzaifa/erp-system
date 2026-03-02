@@ -15,6 +15,7 @@ export default function NewProjectPage() {
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
+    reset(); // always clear stale store state when this page mounts/existingId changes
     const init = async () => {
       if (existingId) {
         try {
