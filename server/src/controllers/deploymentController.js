@@ -14,17 +14,33 @@ const getDeployService = () => {
 };
 
 exports.deploy = async (req, res, next) => {
-  // Docker/PM2 deployment requires a persistent server environment.
-  // Vercel is serverless and cannot run containers or background processes.
-  if (process.env.VERCEL) {
-    return res.status(400).json({
-      error: 'Docker deployment is not available on Vercel (serverless). Run the ERP Builder server locally with Docker Desktop to use this feature.'
-    });
+  // Always open SSE stream first so the client gets readable error messages
+  // instead of a cryptic "HTTP 400" from useSSE.
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const emitEvent = (event, data) => {
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch (_) {}
+  };
+
+  // Docker/PM2 deployment requires a persistent server with Docker installed.
+  // Vercel is serverless — no Docker daemon, no background processes.
+  const isServerless = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (isServerless) {
+    emitEvent('status', { message: '⚠️  Serverless environment detected (Vercel)' });
+    emitEvent('error', { message: 'Docker deployment requires a dedicated server with Docker Desktop. Run the ERP Builder locally to use this feature.' });
+    return res.end();
   }
 
   try {
     const project = await Project.findById(req.params.projectId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project) {
+      emitEvent('error', { message: 'Project not found' });
+      return res.end();
+    }
 
     const generatedCode = await GeneratedCode.findOne({
       projectId: project._id,
@@ -32,18 +48,9 @@ exports.deploy = async (req, res, next) => {
     }).sort({ version: -1 });
 
     if (!generatedCode) {
-      return res.status(400).json({ error: 'Generate code before deploying' });
+      emitEvent('error', { message: 'Generate code before deploying' });
+      return res.end();
     }
-
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
-    });
-
-    const emitEvent = (event, data) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    };
 
     const { service, type } = getDeployService();
 
@@ -89,7 +96,9 @@ exports.deploy = async (req, res, next) => {
 
     res.end();
   } catch (error) {
-    next(error);
+    logger.error('Deploy outer error:', error.message);
+    emitEvent('error', { message: error.message });
+    res.end();
   }
 };
 
