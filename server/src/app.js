@@ -60,7 +60,10 @@ app.use('/api/modules', moduleRoutes);
 app.use('/api/codegen', codegenRoutes);
 app.use('/api/deployments', deploymentRoutes);
 app.post('/api/preview/:projectId', authenticate, previewController.buildPreview);
-app.get('/api/preview/:projectId/*', authenticate, previewController.servePreview);
+// servePreview has no auth — iframes cannot send Bearer tokens.
+// The MongoDB ObjectId in the URL + sample-only data make this safe.
+app.get('/api/preview/:projectId', previewController.servePreview);
+app.get('/api/preview/:projectId/*', previewController.servePreview);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/templates', templateRoutes);
 

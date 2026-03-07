@@ -14,6 +14,14 @@ const getDeployService = () => {
 };
 
 exports.deploy = async (req, res, next) => {
+  // Docker/PM2 deployment requires a persistent server environment.
+  // Vercel is serverless and cannot run containers or background processes.
+  if (process.env.VERCEL) {
+    return res.status(400).json({
+      error: 'Docker deployment is not available on Vercel (serverless). Run the ERP Builder server locally with Docker Desktop to use this feature.'
+    });
+  }
+
   try {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });

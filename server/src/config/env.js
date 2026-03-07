@@ -3,28 +3,28 @@ const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 // Resolve GENERATED_PROJECTS_DIR — always use an absolute path
-// On Windows: use project-relative generated/ folder
-// On Linux (Vercel/production): use /tmp/generated (the only writable dir in serverless)
-let generatedDir = process.env.GENERATED_PROJECTS_DIR;
+// On Vercel (serverless): always /tmp/generated (only writable dir)
+// On Windows: use project-root/generated
+// On Linux/Mac (non-Vercel): use env var if set and valid, else /tmp/generated
+let generatedDir;
 
-// Detect Windows-style absolute paths (e.g. C:\... or C:/...) and override on Linux
-const isWindowsStylePath = /^[A-Za-z]:[/\\]/.test(generatedDir || '');
-if (isWindowsStylePath && process.platform !== 'win32') {
-  generatedDir = null; // will be replaced below with platform-appropriate default
-}
-
-if (!generatedDir || generatedDir === '/tmp/generated') {
-  if (process.platform === 'win32') {
-    // On Windows, use project-root/generated (avoids AppData/Local/Temp permission issues)
-    generatedDir = path.resolve(__dirname, '../../../generated');
+if (process.env.VERCEL) {
+  // Vercel serverless — ignore any env var, always use /tmp
+  generatedDir = '/tmp/generated';
+} else if (process.platform === 'win32') {
+  // Local Windows — use project-root/generated
+  generatedDir = path.resolve(__dirname, '../../../generated');
+} else {
+  // Linux/Mac (Render, Railway, local Docker, etc.)
+  const envDir = process.env.GENERATED_PROJECTS_DIR;
+  const isWindowsStylePath = /^[A-Za-z]:[/\\]/.test(envDir || '');
+  if (envDir && !isWindowsStylePath && path.isAbsolute(envDir)) {
+    generatedDir = envDir;
   } else {
-    // On Linux/Mac (Vercel, Render, etc.) /tmp is the only writable directory
     generatedDir = '/tmp/generated';
   }
 }
-if (!path.isAbsolute(generatedDir)) {
-  generatedDir = path.resolve(__dirname, '../../../', generatedDir);
-}
+
 // Ensure the directory exists at startup
 try { fs.mkdirSync(generatedDir, { recursive: true }); } catch {}
 
