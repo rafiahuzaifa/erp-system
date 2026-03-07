@@ -3,10 +3,24 @@ const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 // Resolve GENERATED_PROJECTS_DIR — always use an absolute path
-// Avoid /tmp on Windows (maps to AppData/Local/Temp which may have permission issues)
+// On Windows: use project-relative generated/ folder
+// On Linux (Vercel/production): use /tmp/generated (the only writable dir in serverless)
 let generatedDir = process.env.GENERATED_PROJECTS_DIR;
+
+// Detect Windows-style absolute paths (e.g. C:\... or C:/...) and override on Linux
+const isWindowsStylePath = /^[A-Za-z]:[/\\]/.test(generatedDir || '');
+if (isWindowsStylePath && process.platform !== 'win32') {
+  generatedDir = null; // will be replaced below with platform-appropriate default
+}
+
 if (!generatedDir || generatedDir === '/tmp/generated') {
-  generatedDir = path.resolve(__dirname, '../../../generated');
+  if (process.platform === 'win32') {
+    // On Windows, use project-root/generated (avoids AppData/Local/Temp permission issues)
+    generatedDir = path.resolve(__dirname, '../../../generated');
+  } else {
+    // On Linux/Mac (Vercel, Render, etc.) /tmp is the only writable directory
+    generatedDir = '/tmp/generated';
+  }
 }
 if (!path.isAbsolute(generatedDir)) {
   generatedDir = path.resolve(__dirname, '../../../', generatedDir);
