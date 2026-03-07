@@ -374,41 +374,53 @@ function generateStaticPreview(project, questionnaire, modules) {
 
 // ─── POST /api/preview/:projectId — validate & emit SSE events ────────────────
 
-exports.buildPreview = async (req, res, next) => {
+exports.buildPreview = async (req, res) => {
   const { projectId } = req.params;
+
+  // Always open the SSE stream first — never return JSON errors here,
+  // as useSSE treats any non-200 response as a connection failure.
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+
+  const emit = (event, data) => {
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch (_) {}
+  };
+
   try {
+    emit('status', { message: 'Loading project data...' });
+
     const project = await Project.findById(projectId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project) {
+      emit('error', { message: 'Project not found' });
+      return res.end();
+    }
 
     const generatedCode = await GeneratedCode.findOne(
       { projectId: project._id, status: 'complete' },
     ).sort({ version: -1 });
 
     if (!generatedCode) {
-      return res.status(400).json({ error: 'Generate code first before previewing' });
+      // Allow preview even without generated code — show placeholder UI
+      emit('status', { message: 'No code generated yet — showing placeholder preview...' });
+      await new Promise((r) => setTimeout(r, 300));
+      emit('complete', { message: 'Preview ready (placeholder)!', projectId });
+      return res.end();
     }
 
-    // SSE stream
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    });
-
-    const emit = (event, data) => {
-      try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch (_) {}
-    };
-
-    emit('status', { message: 'Loading project data...' });
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 300));
     emit('status', { message: 'Generating UI preview...' });
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 400));
     emit('status', { message: 'Preview ready!' });
     emit('complete', { message: 'Preview ready!', projectId });
 
     res.end();
   } catch (error) {
-    next(error);
+    logger.error('buildPreview error:', error.message);
+    emit('error', { message: error.message });
+    res.end();
   }
 };
 
@@ -448,8 +460,11 @@ exports.servePreview = async (req, res) => {
     );
 
     logger.info(`Preview served for projectId=${projectId} modules=[${modules.join(',')}]`);
+    // Remove Helmet's restrictive headers — preview is sample/mock data only.
+    // X-Frame-Options SAMEORIGIN would block the iframe in local dev (ports 5173 vs 3001).
+    res.removeHeader('X-Frame-Options');
+    res.removeHeader('Content-Security-Policy');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.send(html);
   } catch (err) {
     logger.error('Preview serve error:', err.message);
