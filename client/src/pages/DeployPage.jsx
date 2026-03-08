@@ -44,6 +44,7 @@ export default function DeployPage() {
   const [customerApproved, setCustomerApproved] = useState(false);
   const [dockerBlocked, setDockerBlocked] = useState(false); // true when serverless error detected
   const [downloading, setDownloading] = useState(false);
+  const goLiveRef = React.useRef(null);
 
   const quickPreviewSSE = useSSE(apiUrl(`/api/preview/${id}`));
   const dockerSSE       = useSSE(apiUrl(`/api/deployments/${id}`));
@@ -171,30 +172,35 @@ export default function DeployPage() {
         )}
       </div>
 
-      {/* Step progress */}
-      {!previewMode && !isDockerRunning && (
-        <div className="flex flex-wrap items-center gap-2 mb-6 text-sm text-gray-500">
-          {[
-            { n: '✓', label: 'Code Generated', done: true },
-            { n: '2', label: 'Build Preview',  active: true },
-            { n: '3', label: 'Customer Approves' },
-            { n: '4', label: 'Go Live' },
-          ].map((step, i, arr) => (
-            <React.Fragment key={step.n}>
-              <div className="flex items-center gap-1.5">
-                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                  step.done   ? 'bg-green-100 text-green-700' :
-                  step.active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-                }`}>{step.n}</span>
-                <span className={step.done ? 'text-green-700 font-medium' : step.active ? 'text-gray-800 font-medium' : ''}>
-                  {step.label}
-                </span>
-              </div>
-              {i < arr.length - 1 && <ChevronRight className="w-4 h-4 text-gray-300" />}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
+      {/* Step progress — always visible, updates dynamically */}
+      {(() => {
+        const step2done = showPreview || customerApproved;
+        const step3done = customerApproved;
+        const steps = [
+          { n: '✓', label: 'Code Generated', done: true,      active: false },
+          { n: '2', label: 'Build Preview',   done: step2done, active: !step2done },
+          { n: '3', label: 'Customer Approves', done: step3done, active: step2done && !step3done },
+          { n: '4', label: 'Go Live',         done: false,     active: step3done },
+        ];
+        return (
+          <div className="flex flex-wrap items-center gap-2 mb-6 text-sm text-gray-500">
+            {steps.map((step, i, arr) => (
+              <React.Fragment key={step.n}>
+                <div className="flex items-center gap-1.5">
+                  <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                    step.done   ? 'bg-green-100 text-green-700' :
+                    step.active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                  }`}>{step.done ? '✓' : step.n}</span>
+                  <span className={step.done ? 'text-green-700 font-medium' : step.active ? 'text-gray-800 font-medium' : ''}>
+                    {step.label}
+                  </span>
+                </div>
+                {i < arr.length - 1 && <ChevronRight className="w-4 h-4 text-gray-300" />}
+              </React.Fragment>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Launch cards */}
       {canAct && !isBuilding && !showPreview && (
@@ -458,8 +464,8 @@ export default function DeployPage() {
         </div>
       )}
 
-      {/* Customer approval */}
-      {showPreview && previewUrl && !customerApproved && (
+      {/* Customer approval — shown once preview is ready, until approved */}
+      {(showPreview || previewReady) && !customerApproved && (
         <div className="card border-2 border-dashed border-blue-200 bg-blue-50 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -467,28 +473,33 @@ export default function DeployPage() {
                 <ShieldCheck className="w-5 h-5 text-blue-600" /> Customer Approval
               </h3>
               <p className="text-sm text-gray-600 max-w-lg">
-                Review the preview above. When the customer is satisfied, click <strong>Approve & Finalize</strong>.
+                Review the preview above. When the customer is satisfied, click <strong>Approve & Go Live</strong>.
               </p>
             </div>
-            <button onClick={() => setCustomerApproved(true)} className="btn-primary flex items-center gap-2 shrink-0">
-              <ShieldCheck className="w-4 h-4" /> Approve & Finalize
+            <button onClick={() => {
+              setCustomerApproved(true);
+              setTimeout(() => goLiveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+            }} className="btn-primary flex items-center gap-2 shrink-0">
+              <ShieldCheck className="w-4 h-4" /> Approve & Go Live
             </button>
           </div>
         </div>
       )}
 
       {customerApproved && (
-        <div className="space-y-4 mb-4">
-          {/* Approval banner */}
-          <div className="card border border-green-200 bg-green-50">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
+        <div ref={goLiveRef} className="space-y-4 mb-4">
+          {/* Go Live banner */}
+          <div className="card border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-green-500 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-8 h-8 text-white" />
+              </div>
               <div className="flex-1">
-                <p className="font-semibold text-green-800">Project Approved! 🎉</p>
-                <p className="text-sm text-green-700">Customer has confirmed this build. Download and share the project below.</p>
+                <p className="font-bold text-green-800 text-lg">Step 4: Go Live! 🚀</p>
+                <p className="text-sm text-green-700 mt-0.5">Project approved — download the ZIP and share it with the customer to run on their machine.</p>
               </div>
               <button onClick={handleDownload} disabled={downloading}
-                className="shrink-0 flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700">
+                className="shrink-0 flex items-center gap-2 px-5 py-3 bg-green-600 text-white text-sm font-bold rounded-xl hover:bg-green-700 shadow-sm">
                 {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 {downloading ? 'Preparing...' : 'Download ZIP'}
               </button>
