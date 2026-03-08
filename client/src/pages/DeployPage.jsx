@@ -5,11 +5,12 @@ import {
   AlertCircle, CheckCircle2, Loader2, Server,
   Monitor, Tablet, Smartphone, RefreshCw,
   ChevronRight, Play, ShieldCheck, Maximize2, Minimize2,
-  Zap, Container, Info, WifiOff
+  Zap, Container, Info, WifiOff, Download, FolderOpen
 } from 'lucide-react';
 import useProjectStore from '../store/useProjectStore';
 import useSSE from '../hooks/useSSE';
 import { getDeploymentStatus, stopDeployment, restartDeployment, destroyDeployment } from '../api/deployments';
+import { downloadProject } from '../api/codegen';
 import { apiUrl } from '../api/config';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
@@ -42,6 +43,7 @@ export default function DeployPage() {
   const [fullscreen, setFullscreen]       = useState(false);
   const [customerApproved, setCustomerApproved] = useState(false);
   const [dockerBlocked, setDockerBlocked] = useState(false); // true when serverless error detected
+  const [downloading, setDownloading] = useState(false);
 
   const quickPreviewSSE = useSSE(apiUrl(`/api/preview/${id}`));
   const dockerSSE       = useSSE(apiUrl(`/api/deployments/${id}`));
@@ -101,6 +103,23 @@ export default function DeployPage() {
     setDockerBlocked(false);
     dockerSSE.connect();
   }, [dockerSSE]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const { data } = await downloadProject(id);
+      const url = window.URL.createObjectURL(new Blob([data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(project?.name || 'project').replace(/[^a-z0-9-_]/gi, '-').toLowerCase()}.zip`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Download failed', e);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleAction = async (action) => {
     setActionLoading(action);
@@ -179,7 +198,7 @@ export default function DeployPage() {
 
       {/* Launch cards */}
       {canAct && !isBuilding && !showPreview && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
           {/* Quick Preview */}
           <div
@@ -201,6 +220,30 @@ export default function DeployPage() {
                   </button>
                   <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full">
                     ✓ Works on Vercel
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Download & Run Locally */}
+          <div className="card border-2 border-green-200 hover:border-green-400 transition-colors cursor-pointer group"
+            onClick={handleDownload}>
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-green-100 group-hover:bg-green-200 transition-colors flex items-center justify-center shrink-0">
+                {downloading ? <Loader2 className="w-6 h-6 text-green-600 animate-spin" /> : <Download className="w-6 h-6 text-green-600" />}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 mb-1">Download & Run Locally</h3>
+                <p className="text-sm text-gray-500 mb-3">
+                  Download the generated project as a ZIP. Extract and run on any machine with Node.js.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button disabled={downloading} className="btn-primary text-sm flex items-center gap-1.5 bg-green-600 hover:bg-green-700">
+                    <Download className="w-3.5 h-3.5" /> {downloading ? 'Downloading...' : 'Download ZIP'}
+                  </button>
+                  <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full">
+                    No Docker needed
                   </span>
                 </div>
               </div>
@@ -435,13 +478,56 @@ export default function DeployPage() {
       )}
 
       {customerApproved && (
-        <div className="card border border-green-200 bg-green-50 mb-4">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
-            <div>
-              <p className="font-semibold text-green-800">Project Approved!</p>
-              <p className="text-sm text-green-700">Customer has confirmed this build is ready.</p>
+        <div className="space-y-4 mb-4">
+          <div className="card border border-green-200 bg-green-50">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
+              <div>
+                <p className="font-semibold text-green-800">Project Approved!</p>
+                <p className="text-sm text-green-700">Customer has confirmed this build is ready.</p>
+              </div>
             </div>
+          </div>
+
+          {/* How to run locally */}
+          <div className="card border border-gray-200">
+            <div className="flex items-center gap-2 mb-3">
+              <FolderOpen className="w-5 h-5 text-gray-600" />
+              <h3 className="font-semibold text-gray-900">How to Run This Project Locally</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              Share these steps with the customer so they can run the app on their own machine:
+            </p>
+            <ol className="space-y-2 text-sm text-gray-700">
+              <li className="flex gap-2">
+                <span className="font-bold text-blue-600 shrink-0">1.</span>
+                <span><strong>Download the ZIP</strong> using the button below and extract it to a folder.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-bold text-blue-600 shrink-0">2.</span>
+                <span>Install <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Node.js</a> (v18 or newer) if not already installed.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-bold text-blue-600 shrink-0">3.</span>
+                <span>Open a terminal in the extracted folder and run:</span>
+              </li>
+            </ol>
+            <div className="mt-3 bg-gray-900 rounded-lg p-3 font-mono text-sm text-green-400 space-y-1">
+              <div><span className="text-gray-500"># Install dependencies</span></div>
+              <div>npm install</div>
+              <div className="mt-2"><span className="text-gray-500"># Start the app</span></div>
+              <div>npm start</div>
+              <div className="mt-2"><span className="text-gray-500"># App will be available at:</span></div>
+              <div>http://localhost:3000</div>
+            </div>
+            <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+              <strong>Note:</strong> Make sure <a href="https://www.mongodb.com/try/download/community" target="_blank" rel="noopener noreferrer" className="underline">MongoDB</a> is running locally, or set the <code className="bg-blue-100 px-1 rounded">MONGODB_URI</code> environment variable in the <code className="bg-blue-100 px-1 rounded">.env</code> file to your MongoDB connection string.
+            </div>
+            <button onClick={handleDownload} disabled={downloading}
+              className="mt-4 btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700 w-full justify-center">
+              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloading ? 'Preparing ZIP...' : 'Download Project ZIP'}
+            </button>
           </div>
         </div>
       )}
