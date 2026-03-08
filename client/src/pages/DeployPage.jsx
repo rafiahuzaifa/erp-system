@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Square, RotateCcw, Trash2, ExternalLink, Terminal,
   AlertCircle, CheckCircle2, Loader2, Server,
-  Monitor, Tablet, Smartphone, RefreshCw, Eye, EyeOff,
-  ChevronRight, Play, ShieldCheck, Maximize2, Minimize2, Zap, Container
+  Monitor, Tablet, Smartphone, RefreshCw,
+  ChevronRight, Play, ShieldCheck, Maximize2, Minimize2,
+  Zap, Container, Info, WifiOff
 } from 'lucide-react';
 import useProjectStore from '../store/useProjectStore';
 import useSSE from '../hooks/useSSE';
@@ -18,38 +19,44 @@ const DEVICES = [
   { key: 'mobile',  label: 'Mobile',  icon: Smartphone, width: '390px', frameHeight: '844px' },
 ];
 
+// Detect serverless/cloud environment from the URL
+const IS_CLOUD = typeof window !== 'undefined' && (
+  window.location.hostname.includes('vercel.app') ||
+  window.location.hostname.includes('netlify.app') ||
+  window.location.hostname.includes('railway.app')
+);
+
 export default function DeployPage() {
   const { id } = useParams();
   const { currentProject: project, fetchProject } = useProjectStore();
-  const [deployment, setDeployment] = useState(null);
+  const [deployment, setDeployment]       = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
   // Preview state
-  const [previewMode, setPreviewMode] = useState(null); // null | 'quick' | 'docker'
-  const [previewReady, setPreviewReady] = useState(false);
-  const [device, setDevice] = useState('desktop');
-  const [iframeKey, setIframeKey] = useState(0);
+  const [previewMode, setPreviewMode]     = useState(null); // null | 'quick' | 'docker'
+  const [previewReady, setPreviewReady]   = useState(false);
+  const [device, setDevice]               = useState('desktop');
+  const [iframeKey, setIframeKey]         = useState(0);
   const [iframeLoading, setIframeLoading] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreen, setFullscreen]       = useState(false);
   const [customerApproved, setCustomerApproved] = useState(false);
+  const [dockerBlocked, setDockerBlocked] = useState(false); // true when serverless error detected
 
-  // SSE for quick preview build
   const quickPreviewSSE = useSSE(apiUrl(`/api/preview/${id}`));
-  // SSE for docker deploy
-  const dockerSSE = useSSE(apiUrl(`/api/deployments/${id}`));
-  const logSSE = useSSE(apiUrl(`/api/deployments/${id}/logs`));
+  const dockerSSE       = useSSE(apiUrl(`/api/deployments/${id}`));
+  const logSSE          = useSSE(apiUrl(`/api/deployments/${id}/logs`));
 
   useEffect(() => {
     fetchProject(id);
     loadDeployment();
   }, [id]);
 
-  // When quick preview build completes
+  // Quick preview complete → show iframe
   useEffect(() => {
     if (quickPreviewSSE.status === 'complete') {
-      const lastEvent = quickPreviewSSE.events[quickPreviewSSE.events.length - 1];
-      if (lastEvent?.type === 'complete') {
+      const last = quickPreviewSSE.events[quickPreviewSSE.events.length - 1];
+      if (last?.type === 'complete') {
         setPreviewReady(true);
         setIframeKey(k => k + 1);
         setIframeLoading(true);
@@ -57,13 +64,20 @@ export default function DeployPage() {
     }
   }, [quickPreviewSSE.status, quickPreviewSSE.events]);
 
-  // When docker deploy completes
+  // Docker deploy complete → refresh status
   useEffect(() => {
     if (dockerSSE.status === 'complete') {
       fetchProject(id);
       loadDeployment();
     }
-  }, [dockerSSE.status]);
+    // Detect serverless blocked error
+    if (dockerSSE.status === 'error') {
+      const msg = dockerSSE.error || '';
+      if (msg.toLowerCase().includes('serverless') || msg.toLowerCase().includes('docker desktop')) {
+        setDockerBlocked(true);
+      }
+    }
+  }, [dockerSSE.status, dockerSSE.error]);
 
   const loadDeployment = async () => {
     try {
@@ -76,16 +90,17 @@ export default function DeployPage() {
     }
   };
 
-  const handleLaunchQuickPreview = () => {
+  const handleLaunchQuickPreview = useCallback(() => {
     setPreviewMode('quick');
     setPreviewReady(false);
     quickPreviewSSE.connect();
-  };
+  }, [quickPreviewSSE]);
 
-  const handleLaunchDocker = () => {
+  const handleLaunchDocker = useCallback(() => {
     setPreviewMode('docker');
+    setDockerBlocked(false);
     dockerSSE.connect();
-  };
+  }, [dockerSSE]);
 
   const handleAction = async (action) => {
     setActionLoading(action);
@@ -100,57 +115,56 @@ export default function DeployPage() {
     }
   };
 
-  const isQuickBuilding = previewMode === 'quick' && (quickPreviewSSE.status === 'connecting' || quickPreviewSSE.status === 'connected');
+  const isQuickBuilding  = previewMode === 'quick'  && (quickPreviewSSE.status === 'connecting' || quickPreviewSSE.status === 'connected');
   const isDockerDeploying = previewMode === 'docker' && (dockerSSE.status === 'connecting' || dockerSSE.status === 'connected');
   const isBuilding = isQuickBuilding || isDockerDeploying;
 
   const isDockerRunning = deployment?.status === 'running';
   const isDockerStopped = deployment?.status === 'stopped';
   const isDockerFailed  = deployment?.status === 'failed';
-  const canDeploy = project?.status === 'generated' || project?.status === 'deployed' || isDockerStopped || isDockerFailed || project?.status === 'failed';
+  const canAct = project?.status === 'generated' || project?.status === 'deployed' ||
+                 isDockerStopped || isDockerFailed || project?.status === 'failed';
 
-  // Preview URL
   const quickPreviewUrl = previewReady ? apiUrl(`/api/preview/${id}/`) : null;
   const dockerPreviewUrl = isDockerRunning ? apiUrl(`/api/deployments/${id}/preview/`) : null;
   const previewUrl = previewMode === 'quick' ? quickPreviewUrl : dockerPreviewUrl;
 
   const activeSSE = previewMode === 'quick' ? quickPreviewSSE : dockerSSE;
   const currentDevice = DEVICES.find(d => d.key === device);
+  const showPreview = (previewMode === 'quick' && previewReady) || (previewMode === 'docker' && isDockerRunning);
 
   if (initialLoading) return <LoadingSpinner className="py-20" />;
-
-  const showPreview = (previewMode === 'quick' && previewReady) || (previewMode === 'docker' && isDockerRunning);
 
   return (
     <div className={`flex flex-col ${fullscreen ? 'fixed inset-0 z-50 bg-white p-4 overflow-auto' : 'max-w-6xl mx-auto'}`}>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Preview & Deploy</h1>
-          <p className="text-gray-500 text-sm">{project?.name || 'Project'}</p>
+          <p className="text-gray-500 text-sm mt-0.5">{project?.name || 'Project'}</p>
         </div>
         {isBuilding && (
-          <span className="flex items-center gap-2 text-sm text-blue-600 font-medium">
+          <span className="flex items-center gap-2 text-sm text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-full">
             <Loader2 className="w-4 h-4 animate-spin" />
             {isQuickBuilding ? 'Building preview...' : 'Deploying container...'}
           </span>
         )}
       </div>
 
-      {/* Step indicators - shown when nothing is active */}
+      {/* Step progress */}
       {!previewMode && !isDockerRunning && (
         <div className="flex flex-wrap items-center gap-2 mb-6 text-sm text-gray-500">
           {[
             { n: '✓', label: 'Code Generated', done: true },
-            { n: '2', label: 'Build Preview', active: true },
+            { n: '2', label: 'Build Preview',  active: true },
             { n: '3', label: 'Customer Approves' },
             { n: '4', label: 'Go Live' },
           ].map((step, i, arr) => (
             <React.Fragment key={step.n}>
               <div className="flex items-center gap-1.5">
                 <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                  step.done ? 'bg-green-100 text-green-700' :
+                  step.done   ? 'bg-green-100 text-green-700' :
                   step.active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
                 }`}>{step.n}</span>
                 <span className={step.done ? 'text-green-700 font-medium' : step.active ? 'text-gray-800 font-medium' : ''}>
@@ -163,54 +177,102 @@ export default function DeployPage() {
         </div>
       )}
 
-      {/* Launch buttons — show when no active preview */}
-      {canDeploy && !isBuilding && !showPreview && (
+      {/* Launch cards */}
+      {canAct && !isBuilding && !showPreview && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          {/* Quick Preview card */}
-          <div className="card border-2 border-blue-200 hover:border-blue-400 transition-colors cursor-pointer" onClick={handleLaunchQuickPreview}>
+
+          {/* Quick Preview */}
+          <div
+            className="card border-2 border-blue-200 hover:border-blue-400 transition-colors cursor-pointer group"
+            onClick={handleLaunchQuickPreview}
+          >
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-blue-100 group-hover:bg-blue-200 transition-colors flex items-center justify-center shrink-0">
                 <Zap className="w-6 h-6 text-blue-600" />
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900 mb-1">Quick UI Preview</h3>
-                <p className="text-sm text-gray-500 mb-3">Builds the React frontend only. Fast (~1 min). Perfect for showing the customer the UI layout and design.</p>
-                <button className="btn-primary text-sm flex items-center gap-2">
-                  <Zap className="w-3.5 h-3.5" /> Build UI Preview
-                </button>
+                <p className="text-sm text-gray-500 mb-3">
+                  Instantly shows a live preview of the generated ERP UI — no build required. Works everywhere.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button className="btn-primary text-sm flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5" /> Build UI Preview
+                  </button>
+                  <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full">
+                    ✓ Works on Vercel
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Docker Full Deploy card */}
-          <div className="card border-2 border-gray-200 hover:border-gray-400 transition-colors cursor-pointer" onClick={handleLaunchDocker}>
+          {/* Docker Deploy */}
+          <div
+            className={`card border-2 transition-colors ${IS_CLOUD ? 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-75' : 'border-gray-200 hover:border-gray-400 cursor-pointer group'}`}
+            onClick={IS_CLOUD ? undefined : handleLaunchDocker}
+          >
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <Container className="w-6 h-6 text-gray-600" />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${IS_CLOUD ? 'bg-gray-100' : 'bg-gray-100 group-hover:bg-gray-200 transition-colors'}`}>
+                <Container className={`w-6 h-6 ${IS_CLOUD ? 'text-gray-400' : 'text-gray-600'}`} />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 mb-1">Full Docker Deploy</h3>
-                <p className="text-sm text-gray-500 mb-3">Builds and runs the complete app (frontend + backend) in Docker. Takes 3-10 min. Full functionality.</p>
-                <button className="btn-secondary text-sm flex items-center gap-2">
-                  <Play className="w-3.5 h-3.5" /> Deploy with Docker
-                </button>
+                <h3 className={`font-semibold mb-1 ${IS_CLOUD ? 'text-gray-400' : 'text-gray-900'}`}>Full Docker Deploy</h3>
+                <p className={`text-sm mb-3 ${IS_CLOUD ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Builds and runs the complete app (frontend + backend) in Docker.
+                </p>
+                {IS_CLOUD ? (
+                  <div className="flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg">
+                    <WifiOff className="w-4 h-4 shrink-0" />
+                    <span>Run locally with Docker Desktop to use this feature</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button className="btn-secondary text-sm flex items-center gap-1.5">
+                      <Play className="w-3.5 h-3.5" /> Deploy with Docker
+                    </button>
+                    <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-full">
+                      Local only
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Re-build/switch buttons when preview is active */}
+      {/* Cloud docker notice (shown after clicking the button if not IS_CLOUD but still got blocked) */}
+      {dockerBlocked && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-800 text-sm">Docker Deploy — Local Setup Required</p>
+            <p className="text-sm text-amber-700 mt-1">
+              Docker deployment requires a persistent server with Docker Desktop installed.
+              This feature is not available in the cloud (Vercel).
+            </p>
+            <p className="text-sm text-amber-700 mt-1">
+              Run <code className="bg-amber-100 px-1 rounded font-mono">npm run dev</code> locally
+              with Docker Desktop running to use full deployment.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Rebuild/switch controls when active */}
       {(showPreview || isBuilding) && (
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           <button onClick={handleLaunchQuickPreview} disabled={isBuilding}
             className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50">
             <Zap className="w-3.5 h-3.5" /> Rebuild Preview
           </button>
-          <button onClick={handleLaunchDocker} disabled={isBuilding}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">
-            <Container className="w-3.5 h-3.5" /> Full Deploy
-          </button>
+          {!IS_CLOUD && (
+            <button onClick={handleLaunchDocker} disabled={isBuilding}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+              <Container className="w-3.5 h-3.5" /> Full Deploy
+            </button>
+          )}
           {isDockerRunning && (
             <>
               <button onClick={() => handleAction('stop')} disabled={!!actionLoading}
@@ -226,7 +288,7 @@ export default function DeployPage() {
         </div>
       )}
 
-      {/* Build progress */}
+      {/* Build log */}
       {activeSSE.events.length > 0 && (
         <div className="card mb-4 p-0 overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-gray-50 text-sm font-semibold text-gray-700">
@@ -239,23 +301,24 @@ export default function DeployPage() {
           <div className="p-3 max-h-44 overflow-y-auto space-y-0.5 font-mono text-xs bg-gray-950">
             {activeSSE.events.map((evt, i) => (
               <div key={i} className={`${
-                evt.type === 'error' ? 'text-red-400' :
+                evt.type === 'error'    ? 'text-red-400' :
                 evt.type === 'complete' ? 'text-green-400' :
-                evt.type === 'status' ? 'text-blue-400' : 'text-gray-300'
+                evt.type === 'status'   ? 'text-blue-400' : 'text-gray-300'
               }`}>
                 {evt.data.message || evt.data.log || JSON.stringify(evt.data)}
               </div>
             ))}
           </div>
-          {activeSSE.status === 'error' && (
-            <div className="px-4 py-2.5 bg-red-50 border-t border-red-200 text-sm text-red-700">
-              {activeSSE.error || 'Build failed'}
+          {activeSSE.status === 'error' && !dockerBlocked && (
+            <div className="px-4 py-2.5 bg-red-50 border-t border-red-200 text-sm text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {activeSSE.error || 'Build failed. Check the log above.'}
             </div>
           )}
         </div>
       )}
 
-      {/* Docker running status bar */}
+      {/* Docker running status */}
       {isDockerRunning && (
         <div className="flex items-center justify-between px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl mb-4">
           <div className="flex items-center gap-2">
@@ -263,11 +326,11 @@ export default function DeployPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
             </span>
-            <span className="text-sm font-medium text-green-800">Docker app running · port {deployment.port}</span>
+            <span className="text-sm font-medium text-green-800">App running · port {deployment.port}</span>
           </div>
           <a href={`http://localhost:${deployment.port}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs text-green-700 hover:text-green-900">
-            <ExternalLink className="w-3 h-3" /> Open
+            <ExternalLink className="w-3 h-3" /> Open directly
           </a>
         </div>
       )}
@@ -283,7 +346,6 @@ export default function DeployPage() {
       {/* ── PREVIEW IFRAME ── */}
       {showPreview && previewUrl && (
         <div className={`card p-0 overflow-hidden mb-4 ${fullscreen ? 'flex flex-col flex-1' : ''}`}>
-
           {/* Toolbar */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50">
             <div className="flex items-center gap-0.5 bg-white border rounded-lg p-0.5">
@@ -300,7 +362,7 @@ export default function DeployPage() {
 
             <div className="hidden md:flex items-center gap-1.5 text-gray-400 text-xs font-mono bg-white border rounded-lg px-3 py-1.5 max-w-xs truncate">
               <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
-              {previewMode === 'quick' ? 'UI Preview (static)' : `port ${deployment?.port}`}
+              {previewMode === 'quick' ? 'UI Preview (static)' : `Docker · port ${deployment?.port}`}
             </div>
 
             <div className="flex items-center gap-1">
@@ -346,6 +408,7 @@ export default function DeployPage() {
                 onLoad={() => setIframeLoading(false)}
                 onError={() => setIframeLoading(false)}
                 allow="forms"
+                sandbox="allow-same-origin allow-scripts allow-forms"
               />
             </div>
           </div>
@@ -361,7 +424,7 @@ export default function DeployPage() {
                 <ShieldCheck className="w-5 h-5 text-blue-600" /> Customer Approval
               </h3>
               <p className="text-sm text-gray-600 max-w-lg">
-                Review the preview above. When the customer is satisfied with the UI, click <strong>Approve & Finalize</strong>.
+                Review the preview above. When the customer is satisfied, click <strong>Approve & Finalize</strong>.
               </p>
             </div>
             <button onClick={() => setCustomerApproved(true)} className="btn-primary flex items-center gap-2 shrink-0">
