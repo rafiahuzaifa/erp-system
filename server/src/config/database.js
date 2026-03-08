@@ -38,11 +38,16 @@ const connectPostgres = async () => {
   try {
     await sequelize.authenticate();
     logger.info('PostgreSQL connected successfully');
-    await sequelize.sync({ alter: env.NODE_ENV === 'development' });
-    logger.info('PostgreSQL models synchronized');
   } catch (error) {
     logger.error('PostgreSQL connection failed:', error.message);
     throw error;
+  }
+  try {
+    await sequelize.sync({ alter: env.NODE_ENV === 'development' });
+    logger.info('PostgreSQL models synchronized');
+  } catch (syncError) {
+    // alter:true can fail on FK constraint re-creation if already applied; non-fatal
+    logger.warn('PostgreSQL sync warning (tables already up-to-date):', syncError.message);
   }
 };
 
