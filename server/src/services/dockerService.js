@@ -95,9 +95,13 @@ CMD ["node", "src/index.js"]
   }
 
   async buildAndDeploy(project, generatedCode, envVars, emitEvent) {
-    await this._initPromise; // wait for socket detection to complete
+    await this._initPromise; // wait for initial socket detection
+    // If Docker wasn't available at startup, try again now (user may have started Docker after the server)
     if (!this.isAvailable) {
-      throw new Error('Docker is not available. Make sure Docker Desktop or Rancher Desktop is running.');
+      await this.initDocker();
+    }
+    if (!this.isAvailable) {
+      throw new Error('Docker is not available. Make sure Docker Desktop is running, then try again.');
     }
 
     // Write project to disk

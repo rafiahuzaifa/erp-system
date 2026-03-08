@@ -565,20 +565,25 @@ export default function DeployPage() {
                     <p><strong>Mac/Linux:</strong> Open Terminal → type <code className="bg-gray-100 px-1 rounded font-mono text-xs">cd /path/to/extracted-folder</code></p>
                   </div>
                   <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm space-y-2">
-                    <div className="text-gray-400 text-xs mb-2"># Run these commands one by one:</div>
+                    <div className="text-gray-400 text-xs mb-2"># First time setup — run these commands:</div>
                     <div>
-                      <span className="text-gray-500"># 1. Install packages</span>
-                      <div className="text-green-400 mt-1">npm install</div>
+                      <span className="text-gray-500"># 1. Install all packages (backend + frontend)</span>
+                      <div className="text-green-400 mt-1">npm run setup</div>
                     </div>
                     <div className="mt-3">
-                      <span className="text-gray-500"># 2. Start the application</span>
-                      <div className="text-green-400 mt-1">npm start</div>
+                      <span className="text-gray-500"># 2. Build frontend &amp; start the app</span>
+                      <div className="text-green-400 mt-1">npm run start:full</div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <span className="text-gray-500"># After first time, just run:</span>
+                      <div className="text-blue-400 mt-1">npm run start:full</div>
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-700">
                       <span className="text-gray-500"># You will see:</span>
-                      <div className="text-blue-400 mt-1">Server running on port 3000</div>
+                      <div className="text-blue-400 mt-1">Server running on http://localhost:3000</div>
                     </div>
                   </div>
+                  <p className="text-xs text-gray-500 mt-2">⏳ First build takes 1–2 minutes — frontend is being compiled</p>
                 </div>
               </div>
 

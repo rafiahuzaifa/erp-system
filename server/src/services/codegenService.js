@@ -505,15 +505,22 @@ The app will be available at \`http://localhost:${port}\`.
     const frontendSection = hasFrontend ? `
 ## Frontend (React)
 
-The React frontend lives in the \`client/\` directory.
+The React frontend lives in the \`client/\` directory. It is built and served by the backend server.
 
 \`\`\`bash
-cd client
-npm install
-npm run dev   # starts on http://localhost:${clientPort}
+# One-command setup (first time):
+npm run setup        # installs backend + frontend dependencies
+npm run start:full   # builds React frontend and starts the server
+
+# After first setup, just run:
+npm run start:full
+
+# Or for development (hot-reload in separate terminals):
+npm run dev                      # terminal 1: backend with auto-reload
+npm --prefix client run dev      # terminal 2: React dev server on http://localhost:${clientPort}
 \`\`\`
 
-> Set \`REACT_APP_API_URL\` in \`client/.env\` to match your backend URL.
+> The built frontend is served at \`http://localhost:${port}\` by the backend.
 ` : '';
 
     return `# ${project.name}
@@ -545,12 +552,14 @@ ${moduleList}
 ### 1. Install dependencies
 
 \`\`\`bash
-npm install
+npm run setup
 \`\`\`
+
+> This installs backend and frontend packages in one command.
 
 ### 2. Configure environment
 
-Create a \`.env\` file in the project root:
+The \`.env\` file is already created. Edit it if needed:
 
 \`\`\`env
 ${envVars}
@@ -562,14 +571,15 @@ ${envVars}
 node src/seed.js
 \`\`\`
 
-### 4. Start the server
+### 4. Start the application
 
 \`\`\`bash
-npm start          # production
-npm run dev        # development (with nodemon)
+npm run start:full   # builds frontend + starts server (recommended)
+npm start            # backend only (if frontend is already built)
+npm run dev          # backend with auto-reload (development)
 \`\`\`
 
-The API will be available at \`http://localhost:${port}/api\`.
+${hasFrontend ? `Open **http://localhost:${port}** in your browser to see the app.` : `The API will be available at **http://localhost:${port}/api**.`}
 ${frontendSection}${dockerSection}
 ---
 

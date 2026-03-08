@@ -8,7 +8,12 @@ const logger = require('../utils/logger');
 const dockerService = new DockerService();
 const pm2Service = new PM2Service();
 
-const getDeployService = () => {
+const getDeployService = async () => {
+  // If Docker wasn't available at server startup, try re-connecting now
+  // (user may have started Docker Desktop after the server was already running)
+  if (!dockerService.isAvailable) {
+    await dockerService.initDocker();
+  }
   if (dockerService.isAvailable) return { service: dockerService, type: 'docker' };
   return { service: pm2Service, type: 'pm2' };
 };
@@ -52,7 +57,7 @@ exports.deploy = async (req, res, next) => {
       return res.end();
     }
 
-    const { service, type } = getDeployService();
+    const { service, type } = await getDeployService();
 
     const deployment = await Deployment.create({
       projectMongoId: project._id.toString(),

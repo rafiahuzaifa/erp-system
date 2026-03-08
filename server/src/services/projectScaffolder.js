@@ -42,7 +42,11 @@ class ProjectScaffolder {
         scripts: {
           start: 'node src/index.js',
           dev: 'node --watch src/index.js',
-          seed: 'node src/seed.js'
+          seed: 'node src/seed.js',
+          'install:client': 'npm --prefix client install',
+          'build:client': 'npm --prefix client run build',
+          'setup': 'npm install && npm run install:client',
+          'start:full': 'npm run build:client && node src/index.js'
         },
         dependencies: {
           express: '^4.18.2',

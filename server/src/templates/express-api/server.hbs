@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -72,13 +73,14 @@ const {{camelCase this.name}}Routes = require('./routes/{{camelCase this.name}}'
 app.use('/api/{{kebabCase this.name}}', {{camelCase this.name}}Routes);
 {{/each}}
 
-// ===== Serve Frontend (Production) =====
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-    }
+// ===== Serve Frontend =====
+// Serves the built React app whenever client/dist exists (run `npm run build:client` first)
+const clientDistPath = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(clientDistPath, 'index.html'));
   });
 }
 
