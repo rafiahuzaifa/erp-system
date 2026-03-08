@@ -56,6 +56,9 @@ export default function LandingPage() {
             <span className="text-xl font-bold text-gray-900">ERP Builder</span>
           </div>
           <div className="flex items-center gap-3">
+            <Link to="/demo" className="hidden sm:block text-indigo-600 hover:text-indigo-800 font-medium px-4 py-2">
+              Live Demo
+            </Link>
             <Link to="/login" className="text-gray-600 hover:text-gray-900 font-medium px-4 py-2">
               Sign In
             </Link>

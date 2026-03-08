@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FolderPlus, Settings, Layers,
-  ChevronLeft, LogOut, FolderOpen
+  ChevronLeft, LogOut, FolderOpen, MonitorPlay
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/projects', icon: FolderOpen, label: 'My Projects' },
   { to: '/projects/new', icon: FolderPlus, label: 'New Project' },
+  { to: '/demo', icon: MonitorPlay, label: 'Live Demo', highlight: true },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -48,7 +49,7 @@ export default function Sidebar({ open, onToggle }) {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-1">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItems.map(({ to, icon: Icon, label, highlight }) => (
           <NavLink
             key={to}
             to={to}
@@ -57,6 +58,8 @@ export default function Sidebar({ open, onToggle }) {
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-primary-50 text-primary-700'
+                  : highlight
+                  ? 'text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
               }`
             }

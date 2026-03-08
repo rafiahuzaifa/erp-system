@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Menu, ChevronRight } from 'lucide-react';
+import { Menu, ChevronRight, MonitorPlay } from 'lucide-react';
 import useProjectStore from '../../store/useProjectStore';
 import useAuthStore from '../../store/useAuthStore';
 
@@ -63,6 +63,13 @@ export default function Header({ onToggleSidebar }) {
       </div>
 
       <div className="flex items-center gap-3">
+        <Link
+          to="/demo"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+        >
+          <MonitorPlay className="w-4 h-4" />
+          Live Demo
+        </Link>
         {user && (
           <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-bold">
             {user.name?.charAt(0)?.toUpperCase() || 'U'}
