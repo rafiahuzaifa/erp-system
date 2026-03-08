@@ -7,18 +7,33 @@ class DockerService {
     this.docker = null;
     this.scaffolder = new ProjectScaffolder();
     this.usedPorts = new Set();
-    this.initDocker();
+    this._initPromise = this.initDocker();
   }
 
-  initDocker() {
+  async initDocker() {
     try {
       const Docker = require('dockerode');
-      // Windows Docker Desktop uses a named pipe instead of Unix socket
-      const opts = process.platform === 'win32'
-        ? { socketPath: '//./pipe/docker_engine' }
-        : {};
-      this.docker = new Docker(opts);
-      logger.info('Docker client initialized');
+      // Try multiple socket paths — supports Docker Desktop AND Rancher Desktop on Windows
+      const sockets = process.platform === 'win32'
+        ? [
+            '//./pipe/docker_engine',           // Docker Desktop
+            '//./pipe/dockerDesktopLinuxEngine', // Rancher Desktop
+            '//./pipe/rancher-desktop'           // Rancher Desktop (alt)
+          ]
+        : ['/var/run/docker.sock'];
+
+      for (const socketPath of sockets) {
+        try {
+          const d = new Docker({ socketPath });
+          await d.ping();
+          this.docker = d;
+          logger.info(`Docker client initialized via ${socketPath}`);
+          return;
+        } catch (_) {
+          // try next socket
+        }
+      }
+      logger.warn('No Docker socket available — Docker deploy unavailable');
     } catch (error) {
       logger.warn('Docker not available:', error.message);
     }
@@ -80,8 +95,9 @@ CMD ["node", "src/index.js"]
   }
 
   async buildAndDeploy(project, generatedCode, envVars, emitEvent) {
+    await this._initPromise; // wait for socket detection to complete
     if (!this.isAvailable) {
-      throw new Error('Docker is not available. Please install Docker to enable deployments.');
+      throw new Error('Docker is not available. Make sure Docker Desktop or Rancher Desktop is running.');
     }
 
     // Write project to disk
