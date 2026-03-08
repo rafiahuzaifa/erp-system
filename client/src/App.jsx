@@ -16,6 +16,7 @@ import CodeGenPage from './pages/CodeGenPage';
 import DeployPage from './pages/DeployPage';
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
+import DemoPage from './pages/DemoPage';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
 function AuthInitializer({ children }) {
@@ -51,6 +52,7 @@ export default function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<PublicHome />} />
+            <Route path="/demo" element={<DemoPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 

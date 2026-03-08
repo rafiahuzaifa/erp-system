@@ -80,16 +80,16 @@ export default function LandingPage() {
             Select your modules, customize entities, and get a fully working management system
             with database, APIs, and frontend — deployed and ready to use.
           </p>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link
               to="/register"
               className="btn-primary text-lg px-8 py-3 flex items-center gap-2"
             >
               Start Building Free <ArrowRight className="w-5 h-5" />
             </Link>
-            <a href="#features" className="btn-secondary text-lg px-8 py-3">
-              See How It Works
-            </a>
+            <Link to="/demo" className="btn-secondary text-lg px-8 py-3 flex items-center gap-2">
+              🎯 See Live Demo
+            </Link>
           </div>
 
           {/* Module icons */}
