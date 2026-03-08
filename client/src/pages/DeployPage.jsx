@@ -479,55 +479,146 @@ export default function DeployPage() {
 
       {customerApproved && (
         <div className="space-y-4 mb-4">
+          {/* Approval banner */}
           <div className="card border border-green-200 bg-green-50">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
-              <div>
-                <p className="font-semibold text-green-800">Project Approved!</p>
-                <p className="text-sm text-green-700">Customer has confirmed this build is ready.</p>
+              <div className="flex-1">
+                <p className="font-semibold text-green-800">Project Approved! 🎉</p>
+                <p className="text-sm text-green-700">Customer has confirmed this build. Download and share the project below.</p>
               </div>
+              <button onClick={handleDownload} disabled={downloading}
+                className="shrink-0 flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700">
+                {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {downloading ? 'Preparing...' : 'Download ZIP'}
+              </button>
             </div>
           </div>
 
-          {/* How to run locally */}
-          <div className="card border border-gray-200">
-            <div className="flex items-center gap-2 mb-3">
-              <FolderOpen className="w-5 h-5 text-gray-600" />
-              <h3 className="font-semibold text-gray-900">How to Run This Project Locally</h3>
+          {/* Customer setup guide */}
+          <div className="card border border-gray-200 p-0 overflow-hidden">
+            <div className="px-5 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+              <div className="flex items-center gap-2 mb-0.5">
+                <FolderOpen className="w-5 h-5" />
+                <h3 className="font-bold text-lg">Customer Setup Guide</h3>
+              </div>
+              <p className="text-blue-100 text-sm">Share these steps with your customer so they can run the app on their computer</p>
             </div>
-            <p className="text-sm text-gray-600 mb-3">
-              Share these steps with the customer so they can run the app on their own machine:
-            </p>
-            <ol className="space-y-2 text-sm text-gray-700">
-              <li className="flex gap-2">
-                <span className="font-bold text-blue-600 shrink-0">1.</span>
-                <span><strong>Download the ZIP</strong> using the button below and extract it to a folder.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-blue-600 shrink-0">2.</span>
-                <span>Install <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Node.js</a> (v18 or newer) if not already installed.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-blue-600 shrink-0">3.</span>
-                <span>Open a terminal in the extracted folder and run:</span>
-              </li>
-            </ol>
-            <div className="mt-3 bg-gray-900 rounded-lg p-3 font-mono text-sm text-green-400 space-y-1">
-              <div><span className="text-gray-500"># Install dependencies</span></div>
-              <div>npm install</div>
-              <div className="mt-2"><span className="text-gray-500"># Start the app</span></div>
-              <div>npm start</div>
-              <div className="mt-2"><span className="text-gray-500"># App will be available at:</span></div>
-              <div>http://localhost:3000</div>
+
+            <div className="p-5 space-y-5">
+
+              {/* Step 1 */}
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">1</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 mb-1">Download & Extract the Project</p>
+                  <p className="text-sm text-gray-600 mb-2">Click the download button above to get the <code className="bg-gray-100 px-1 rounded font-mono text-xs">{(project?.name || 'project').replace(/[^a-z0-9-_]/gi, '-').toLowerCase()}.zip</code> file.</p>
+                  <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 space-y-1.5 border border-gray-200">
+                    <p>📁 <strong>Windows:</strong> Right-click the ZIP → <em>"Extract All"</em> → choose a folder (e.g. <code className="bg-gray-100 px-1 rounded font-mono text-xs">C:\Projects\my-erp</code>)</p>
+                    <p>🍎 <strong>Mac:</strong> Double-click the ZIP to extract automatically</p>
+                    <p>🐧 <strong>Linux:</strong> Run <code className="bg-gray-100 px-1 rounded font-mono text-xs">unzip project.zip -d my-erp</code></p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-l-2 border-dashed border-gray-200 ml-4 h-4" />
+
+              {/* Step 2 */}
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">2</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 mb-1">Install Node.js <span className="text-xs font-normal text-gray-500">(skip if already installed)</span></p>
+                  <p className="text-sm text-gray-600 mb-2">Node.js is required to run the app. Download version 18 or newer.</p>
+                  <a href="https://nodejs.org/en/download" target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700">
+                    <ExternalLink className="w-4 h-4" /> Download Node.js (nodejs.org)
+                  </a>
+                  <p className="text-xs text-gray-400 mt-2">✓ To check if installed: open terminal and type <code className="bg-gray-100 px-1 rounded font-mono">node --version</code></p>
+                </div>
+              </div>
+
+              <div className="border-l-2 border-dashed border-gray-200 ml-4 h-4" />
+
+              {/* Step 3 */}
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">3</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 mb-1">Install MongoDB <span className="text-xs font-normal text-gray-500">(database)</span></p>
+                  <p className="text-sm text-gray-600 mb-2">The app stores its data in MongoDB. Install the Community Edition (free).</p>
+                  <a href="https://www.mongodb.com/try/download/community" target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700">
+                    <ExternalLink className="w-4 h-4" /> Download MongoDB Community
+                  </a>
+                  <p className="text-xs text-gray-400 mt-2">✓ Install it as a Windows Service so it starts automatically with your PC</p>
+                </div>
+              </div>
+
+              <div className="border-l-2 border-dashed border-gray-200 ml-4 h-4" />
+
+              {/* Step 4 */}
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">4</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 mb-2">Open Terminal in Project Folder & Run</p>
+                  <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 border border-gray-200 mb-3 space-y-1.5">
+                    <p><strong>Windows:</strong> Open the extracted folder → hold <kbd className="bg-gray-200 px-1.5 py-0.5 rounded text-xs font-mono">Shift</kbd> + right-click → <em>"Open PowerShell window here"</em></p>
+                    <p><strong>Mac/Linux:</strong> Open Terminal → type <code className="bg-gray-100 px-1 rounded font-mono text-xs">cd /path/to/extracted-folder</code></p>
+                  </div>
+                  <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm space-y-2">
+                    <div className="text-gray-400 text-xs mb-2"># Run these commands one by one:</div>
+                    <div>
+                      <span className="text-gray-500"># 1. Install packages</span>
+                      <div className="text-green-400 mt-1">npm install</div>
+                    </div>
+                    <div className="mt-3">
+                      <span className="text-gray-500"># 2. Start the application</span>
+                      <div className="text-green-400 mt-1">npm start</div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <span className="text-gray-500"># You will see:</span>
+                      <div className="text-blue-400 mt-1">Server running on port 3000</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-l-2 border-dashed border-gray-200 ml-4 h-4" />
+
+              {/* Step 5 */}
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">5</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 mb-1">Open the App in Browser</p>
+                  <p className="text-sm text-gray-600 mb-2">Once the server starts, open your browser and go to:</p>
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+                    <code className="text-green-700 font-mono font-bold text-base">http://localhost:3000</code>
+                    <span className="text-green-600 text-sm ml-auto">🎉 Your ERP is ready!</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Troubleshooting */}
+              <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="font-semibold text-amber-800 text-sm mb-2">⚠️ Common Issues</p>
+                <ul className="text-sm text-amber-700 space-y-1.5">
+                  <li>• <strong>Port 3000 already in use:</strong> Open <code className="bg-amber-100 px-1 rounded font-mono text-xs">.env</code> file in the project, change <code className="bg-amber-100 px-1 rounded font-mono text-xs">PORT=3000</code> to <code className="bg-amber-100 px-1 rounded font-mono text-xs">PORT=3001</code></li>
+                  <li>• <strong>MongoDB error:</strong> Make sure MongoDB service is running. Search for <em>"Services"</em> in Windows, find MongoDB, click Start</li>
+                  <li>• <strong>npm not found:</strong> Node.js was not installed correctly — reinstall from nodejs.org and restart your terminal</li>
+                </ul>
+              </div>
+
             </div>
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-              <strong>Note:</strong> Make sure <a href="https://www.mongodb.com/try/download/community" target="_blank" rel="noopener noreferrer" className="underline">MongoDB</a> is running locally, or set the <code className="bg-blue-100 px-1 rounded">MONGODB_URI</code> environment variable in the <code className="bg-blue-100 px-1 rounded">.env</code> file to your MongoDB connection string.
+
+            {/* Bottom download CTA */}
+            <div className="px-5 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-4">
+              <p className="text-sm text-gray-600">Ready to hand off? Download the project ZIP for the customer.</p>
+              <button onClick={handleDownload} disabled={downloading}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 shrink-0">
+                {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {downloading ? 'Preparing ZIP...' : 'Download Project ZIP'}
+              </button>
             </div>
-            <button onClick={handleDownload} disabled={downloading}
-              className="mt-4 btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700 w-full justify-center">
-              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {downloading ? 'Preparing ZIP...' : 'Download Project ZIP'}
-            </button>
           </div>
         </div>
       )}
