@@ -14,9 +14,8 @@ export default function QuestionnaireWizard({ projectId, onCreateProject, onComp
   const { currentStep, goToStep, nextStep, prevStep, saveStep, loading } = useQuestionnaireStore();
 
   const handleNext = async () => {
-    if (projectId) {
-      await saveStep(projectId);
-    }
+    if (!projectId) return; // can't proceed without a created project
+    await saveStep(projectId);
     nextStep();
   };
 
@@ -65,14 +64,19 @@ export default function QuestionnaireWizard({ projectId, onCreateProject, onComp
         </button>
 
         {currentStep < 4 && (
-          <button
-            onClick={handleNext}
-            disabled={loading || (currentStep > 0 && !projectId)}
-            className="btn-primary flex items-center gap-2 disabled:opacity-50"
-          >
-            {currentStep === 0 && !projectId ? 'Create & Continue' : 'Next'}
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handleNext}
+              disabled={loading || !projectId}
+              className="btn-primary flex items-center gap-2 disabled:opacity-50"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            {currentStep === 0 && !projectId && (
+              <p className="text-xs text-gray-400">Enter project name &amp; select an industry first</p>
+            )}
+          </div>
         )}
       </div>
     </div>
