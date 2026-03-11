@@ -2,8 +2,8 @@ const PLANS = {
   free: {
     id: 'free',
     name: 'Free',
-    projectLimit: 1,
-    moduleLimit: 3,
+    projectLimit: 3,
+    moduleLimit: 5,
     canDeploy: false,
     canExport: false,
     supportLevel: 'community',

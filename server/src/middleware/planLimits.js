@@ -5,6 +5,7 @@ const Project = require('../models/mongo/Project');
 const enforceProjectLimit = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);
+    if (!user) return next(); // user not found in pg — allow creation
     const planConfig = getPlanLimits(user.plan);
 
     if (planConfig.projectLimit === -1) return next();
@@ -30,6 +31,7 @@ const enforceProjectLimit = async (req, res, next) => {
 const enforceModuleLimit = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);
+    if (!user) return next();
     const planConfig = getPlanLimits(user.plan);
 
     if (planConfig.moduleLimit === -1) return next();
@@ -54,6 +56,7 @@ const enforceModuleLimit = async (req, res, next) => {
 const requireDeployAccess = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);
+    if (!user) return next();
     const planConfig = getPlanLimits(user.plan);
 
     if (!planConfig.canDeploy) {
@@ -76,7 +79,7 @@ const requirePlan = (...allowedPlans) => {
       const user = await User.findByPk(req.user.id);
       const planHierarchy = { free: 0, pro: 1, enterprise: 2 };
       const minRequired = Math.min(...allowedPlans.map(p => planHierarchy[p] ?? 99));
-      const userLevel = planHierarchy[user.plan] ?? 0;
+      const userLevel = planHierarchy[user?.plan] ?? 0;
 
       if (userLevel >= minRequired) return next();
 
