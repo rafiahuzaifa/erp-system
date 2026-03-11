@@ -15,6 +15,7 @@ const moduleDefinitions = {
           { name: 'description', type: 'String' },
           { name: 'price', type: 'Number', required: true },
           { name: 'costPrice', type: 'Number' },
+          { name: 'profit', type: 'Number', defaultValue: 0 },
           { name: 'quantity', type: 'Number', required: true, defaultValue: 0 },
           { name: 'reorderLevel', type: 'Number', defaultValue: 10 },
           { name: 'category', type: 'String' },
@@ -102,6 +103,7 @@ const moduleDefinitions = {
           { name: 'amount', type: 'Number', required: true },
           { name: 'dueDate', type: 'Date', required: true },
           { name: 'paidDate', type: 'Date' },
+          { name: 'billingPeriod', type: 'Enum', enumValues: ['monthly', 'quarterly', 'annually', 'one-time'] },
           { name: 'status', type: 'Enum', enumValues: ['pending', 'paid', 'overdue', 'cancelled'] }
         ]
       }
